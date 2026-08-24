@@ -1,0 +1,14 @@
+# Aderyn triage — acknowledged finding instances, one key per line.
+#
+# Covers every high-severity finding, plus the low-severity detectors promoted
+# to gating in script/gate_aderyn.py.
+#
+# Key format: detector_name|contract_path|line_no
+#
+# This file records review decisions: a finding is read, judged a false positive
+# or an accepted risk, and the key committed here with the reasoning above it.
+#
+# Stability: aderyn anchors an instance at the enclosing function declaration,
+# not at the offending statement, so keys survive edits inside a function body.
+# They do not survive inserting or deleting lines above the function, which
+# means the finding is re-reviewed rather than silently inherited.

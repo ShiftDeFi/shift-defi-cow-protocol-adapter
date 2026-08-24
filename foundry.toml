@@ -1,0 +1,70 @@
+# Foundry config. [profile.ci] is what the Wall uses in CI (selected with
+# FOUNDRY_PROFILE=ci). The default profile stays fast for the local agent loop.
+
+[profile.default]
+src = "src"
+out = "out"
+libs = ["lib"]
+solc_version = "0.8.28" # Pinned; the gate must not float across solc versions.
+evm_version = "prague"
+optimizer = true
+optimizer_runs = 200
+
+# Formatting is enforced by the `fmt` lane and applied automatically on edit,
+# so these are pinned rather than left to the toolchain default.
+[fmt]
+line_length = 120
+tab_width = 4
+bracket_spacing = false
+int_types = "long"                         # uint256/int256, never uint/int
+quote_style = "double"
+number_underscore = "preserve"
+multiline_func_header = "attributes_first"
+sort_imports = false                       # plain alphabetical sorting would flatten the
+# external-to-internal import grouping
+
+[lint]
+# The `lint` lane is the only place lint findings gate, and it is scoped to
+# src/. Linting during build re-reported test and dependency code that the lane
+# ignores, so two sources disagreed.
+lint_on_build = false
+# exclude_lints = []        # silence a rule outright, after review
+# mixed_case_exceptions = ["ERC", "URI"]
+
+[profile.default.fuzz]
+runs = 256 # fast enough for the inner loop
+
+[profile.default.invariant]
+runs = 128
+depth = 64
+# fail_on_revert: false = tolerant (reverts don't fail the run). Start here to
+# avoid noise; tighten to true once the invariant handlers are shaped.
+fail_on_revert = false
+
+# ---------------------------------------------------------------------------
+# CI profile: heavier and stricter. This is the authoritative gate.
+# ---------------------------------------------------------------------------
+[profile.ci]
+deny_warnings = true # compiler warnings become gate failures
+
+[profile.ci.fuzz]
+runs = 2000
+
+[profile.ci.invariant]
+runs = 512
+depth = 128
+fail_on_revert = false
+
+# ---------------------------------------------------------------------------
+# Fork testing runs locally, not in CI: fork tests live under test/fork/ and run
+# via `make fork`, which keeps `make verify` hermetic.
+#
+# Pin the block number in setUp() —
+# `vm.createSelectFork(vm.rpcUrl("mainnet"), <block>)`. Forking `latest` makes
+# runs non-reproducible.
+# ---------------------------------------------------------------------------
+[rpc_endpoints]
+ethereum = "${ETH_RPC_URL}"
+
+[etherscan]
+ethereum = { key = "${ETHERSCAN_API_KEY}" }

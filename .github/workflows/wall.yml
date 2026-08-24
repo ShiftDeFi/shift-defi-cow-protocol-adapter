@@ -1,0 +1,67 @@
+# CI runs the same `make verify` as a local run.
+#
+# The pins below must match the local toolchain; check with `make tools` and
+# bump both sides together.
+#
+# No ETH_RPC_URL secret: fork tests run locally via `make fork`, which keeps
+# this pipeline hermetic.
+
+name: CI
+
+permissions:
+  contents: read
+
+# Pull requests targeting main, plus manual dispatch. Pushes to other branches
+# do not run the gate; branch protection on main is what makes that safe, by
+# ensuring main can only be reached through a passing pull request.
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+# A new push to a pull request cancels the run still in flight for it, so a
+# burst of commits costs one full run rather than one per commit.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  FOUNDRY_PROFILE: ci
+  FOUNDRY_VERSION: v1.4.4
+  SLITHER_VERSION: 0.11.6
+  ADERYN_VERSION: 0.6.8
+
+jobs:
+  wall:
+    name: Wall
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+          submodules: recursive
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: ${{ env.FOUNDRY_VERSION }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Slither (pinned)
+        run: pip install --no-cache-dir "slither-analyzer==${SLITHER_VERSION}"
+
+      - name: Install Aderyn (pinned)
+        run: |
+          curl --proto '=https' --tlsv1.2 -LsSf \
+            "https://github.com/cyfrin/aderyn/releases/download/aderyn-v${ADERYN_VERSION}/aderyn-installer.sh" | bash
+          echo "$HOME/.cyfrin/bin" >> "$GITHUB_PATH"
+
+      # Fail EARLY and clearly if a tool is missing, rather than mid-`make verify`.
+      - name: Toolchain report
+        run: make tools
+
+      - name: make verify
+        run: make verify
