@@ -1,10 +1,16 @@
 include wall.mk
 
-.PHONY: install tools fork
+.PHONY: install tools hooks fork
 
-## install : fetch pinned submodule dependencies.
-install:
+## install : fetch pinned submodule dependencies and install the git hooks.
+install: hooks
 	git submodule update --init --recursive
+
+## hooks : route git at the tracked hooks in .githooks/. Needed once per clone,
+##         since .git/hooks is not part of the repository.
+hooks:
+	git config core.hooksPath .githooks
+	@echo "git hooks -> .githooks/ (pre-commit runs make verify)"
 
 ## tools : report the local toolchain. These must match the pins in
 ##         .github/workflows/wall.yml.

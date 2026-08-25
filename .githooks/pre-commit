@@ -1,0 +1,43 @@
+#!/bin/sh
+# Runs `make verify` before a commit that touches Solidity. Install with
+# `make hooks`, which points core.hooksPath at this directory.
+#
+# Bypassable with `git commit --no-verify`. CI and branch protection on main
+# are what actually enforce the gate.
+
+staged=$(git diff --cached --name-only --diff-filter=ACMR -- '*.sol')
+if [ -z "$staged" ]; then
+    exit 0
+fi
+
+for tool in forge slither aderyn make python3; do
+    if ! command -v "$tool" >/dev/null 2>&1; then
+        echo "wall: skipping the gate — $tool is not installed."
+        echo "      See the toolchain table in CLAUDE.md."
+        exit 0
+    fi
+done
+
+# `make verify` reads the working tree. When a tracked .sol file has unstaged
+# changes, the tree and the commit differ, and the result does not describe
+# what is about to be committed.
+unstaged=$(git diff --name-only -- '*.sol')
+if [ -n "$unstaged" ]; then
+    echo "wall: these files have unstaged changes, so the gate is running"
+    echo "      against the working tree rather than the staged content:"
+    echo "$unstaged" | sed 's/^/        /'
+    echo ""
+fi
+
+out=$(mktemp)
+if make verify >"$out" 2>&1; then
+    rm -f "$out"
+    exit 0
+fi
+
+echo ""
+tail -n 120 "$out"
+rm -f "$out"
+echo ""
+echo "wall: commit refused."
+exit 1

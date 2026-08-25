@@ -21,3 +21,6 @@ docs/
 # Per-developer agent settings. The committed .claude/settings.json carries the
 # shared hooks; this file is each developer's own override and stays untracked.
 .claude/settings.local.json
+
+# Coverage
+lcov.info

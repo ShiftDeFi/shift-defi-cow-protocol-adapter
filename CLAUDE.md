@@ -104,9 +104,9 @@ first, helpers last — so a reader meets the contract's surface before its inte
 
 **Storage.** Cache a storage variable in memory if it is read more than once in a scope.
 
-**Parameter validation.** An external or public function validates its parameters and rejects invalid input with a named custom error, rather than letting it fail deeper or not at all. The `aderyn` lane gates the single case tooling detects — an address parameter written to storage with no zero-check. Everything else is unchecked by both engines: a parameter only passed onward to a call, numeric bounds, array lengths, and relationships between two parameters.
+**Parameter validation.** Every external and public function validates its parameters and rejects invalid input with a named custom error. The rule is uniform: do not judge, per parameter, whether an invalid value would have failed anyway.
 
-A check has to change the outcome to be worth writing. A typed call to a codeless address already reverts, so a zero-check on a token parameter that is only used to make a call does not make the function safer — it replaces an opaque `EvmError` with a named error. That is worth having for diagnosability, but it is not a security fix, and it is not a reason to add a check where the failure is already both certain and legible.
+The `aderyn` lane gates the one case tooling detects — an address parameter written to storage with no zero-check. Parameters passed onward to a call, numeric bounds, array lengths and relationships between two parameters are invisible to both engines and are the author's responsibility.
 
 **Events.** A function that modifies state emits an event. One event may cover several variables written in the same call — the rule is per function, not per variable. The `aderyn` lane enforces that an event exists; what it cannot check, and what still has to be got right by hand, is that the event carries the new values, so a consumer can reconstruct the state change from logs alone.
 
