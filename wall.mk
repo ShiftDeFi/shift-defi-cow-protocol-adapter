@@ -40,8 +40,7 @@ build:
 ## lint : naming and style rules that `forge fmt` does not cover.
 ##        `forge lint` reports findings but exits 0, so the gate script is what
 ##        turns them into a failure. Suppress via [lint] in foundry.toml.
-##        The import check is a text scan, so unlike `forge lint` it also covers
-##        test/, which is where upward-traversing imports actually appear.
+##        The import check is a text scan and covers src/, test/ and script/.
 lint:
 	python3 $(WALL_DIR)script/gate_lint.py $(SRC_DIR)
 	@if grep -rn --include='*.sol' --exclude-dir=lib --exclude-dir=out \

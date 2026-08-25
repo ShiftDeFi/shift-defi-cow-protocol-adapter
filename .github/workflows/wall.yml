@@ -1,7 +1,8 @@
 # CI runs the same `make verify` as a local run.
 #
 # The pins below must match the local toolchain; check with `make tools` and
-# bump both sides together.
+# bump both sides together. The runner image and Python version are pinned in
+# the job.
 #
 # No ETH_RPC_URL secret: fork tests run locally via `make fork`, which keeps
 # this pipeline hermetic.
@@ -34,7 +35,7 @@ env:
 jobs:
   wall:
     name: Wall
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v5
         with:
@@ -46,18 +47,35 @@ jobs:
         with:
           version: ${{ env.FOUNDRY_VERSION }}
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
 
+      # Cached paths: ~/.cache/pip holds slither's wheels, ~/.cyfrin the aderyn
+      # binary, ~/.svm the solc version forge downloads. The key carries every
+      # pin, so bumping one rebuilds the cache.
+      - name: Cache pinned toolchain
+        id: toolcache
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/.cache/pip
+            ~/.cyfrin
+            ~/.svm
+          key: wall-${{ runner.os }}-py3.12-slither${{ env.SLITHER_VERSION }}-aderyn${{ env.ADERYN_VERSION }}-foundry${{ env.FOUNDRY_VERSION }}
+
       - name: Install Slither (pinned)
-        run: pip install --no-cache-dir "slither-analyzer==${SLITHER_VERSION}"
+        run: pip install "slither-analyzer==${SLITHER_VERSION}"
 
       - name: Install Aderyn (pinned)
+        if: steps.toolcache.outputs.cache-hit != 'true'
         run: |
           curl --proto '=https' --tlsv1.2 -LsSf \
             "https://github.com/cyfrin/aderyn/releases/download/aderyn-v${ADERYN_VERSION}/aderyn-installer.sh" | bash
-          echo "$HOME/.cyfrin/bin" >> "$GITHUB_PATH"
+
+      # Runs on a cache hit too, where the install step above is skipped.
+      - name: Add Aderyn to PATH
+        run: echo "$HOME/.cyfrin/bin" >> "$GITHUB_PATH"
 
       # Fail EARLY and clearly if a tool is missing, rather than mid-`make verify`.
       - name: Toolchain report

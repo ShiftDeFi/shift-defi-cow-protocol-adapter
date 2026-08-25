@@ -51,7 +51,7 @@ Both analysis lanes gate on findings, and both record accepted findings as revie
 - **Slither** — `--fail-medium`, so anything at medium or above fails. Optimization-severity detectors (`immutable-states`, `cache-array-length`, and three others) are reported but do not gate, since the threshold is deliberately set at correctness. Acknowledge via `make triage`, which writes `slither.db.json`.
 - **Aderyn** — `script/gate_aderyn.py` gates per finding *instance*, keyed `detector|path|line`, against `aderyn.triage`. A new instance of an already-accepted detector is a new key and still fails. Aderyn anchors an instance at the enclosing function declaration, so keys survive edits inside a function body but not line insertions above it.
 
-  Aderyn reports only two severities. All high findings gate; from the low band, only the detectors listed in `GATED_LOW_DETECTORS` in `gate_aderyn.py` do. That band mixes advisory findings — `centralization-risk` fires on every owner-gated function — with rules this repo treats as binding, so detectors are promoted individually rather than by lowering the threshold. Currently promoted: `state-change-without-event`.
+  Aderyn reports only two severities. All high findings gate; from the low band, only the detectors listed in `GATED_LOW_DETECTORS` in `gate_aderyn.py` do. That band mixes advisory findings — `centralization-risk` fires on every owner-gated function — with rules this repo treats as binding, so detectors are promoted individually rather than by lowering the threshold. Currently promoted: `state-change-without-event`, `state-no-address-check`.
 
 Adding a triage entry is a human review decision. Propose entries with reasoning; do not add them unilaterally.
 
@@ -103,6 +103,10 @@ first, helpers last — so a reader meets the contract's surface before its inte
 **Loops.** Use `++i` and `--i`, never postfix. Always cache an array's length before iterating.
 
 **Storage.** Cache a storage variable in memory if it is read more than once in a scope.
+
+**Parameter validation.** An external or public function validates its parameters and rejects invalid input with a named custom error, rather than letting it fail deeper or not at all. The `aderyn` lane gates the single case tooling detects — an address parameter written to storage with no zero-check. Everything else is unchecked by both engines: a parameter only passed onward to a call, numeric bounds, array lengths, and relationships between two parameters.
+
+A check has to change the outcome to be worth writing. A typed call to a codeless address already reverts, so a zero-check on a token parameter that is only used to make a call does not make the function safer — it replaces an opaque `EvmError` with a named error. That is worth having for diagnosability, but it is not a security fix, and it is not a reason to add a check where the failure is already both certain and legible.
 
 **Events.** A function that modifies state emits an event. One event may cover several variables written in the same call — the rule is per function, not per variable. The `aderyn` lane enforces that an event exists; what it cannot check, and what still has to be got right by hand, is that the event carries the new values, so a consumer can reconstruct the state change from logs alone.
 

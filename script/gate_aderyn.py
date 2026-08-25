@@ -7,9 +7,8 @@ instance of an already-accepted detector is a new key, so it still fails.
 
 What gates: every HIGH-severity finding, plus the LOW-severity detectors named
 in GATED_LOW_DETECTORS. Aderyn reports only two severities, and its low band
-mixes advisory findings (centralization-risk fires on every owner-gated
-function) with rules this repo treats as binding. Promoting individual
-detectors keeps the binding ones enforced without adopting the whole band.
+carries both advisory findings and rules this repo enforces, so detectors are
+listed individually rather than by severity.
 
 Report schema:
   report["high_issues"]["issues"] is a list of issue objects, one per detector.
@@ -41,6 +40,10 @@ GATED_LOW_DETECTORS = {
     # Every function that modifies state must emit an event describing the
     # change. One event may cover several variables written in the same call.
     "state-change-without-event",
+    # An address parameter written to storage must be checked against zero.
+    # Only covers addresses that reach storage — a parameter merely passed on
+    # to a call is not flagged by either engine.
+    "state-no-address-check",
 }
 
 
