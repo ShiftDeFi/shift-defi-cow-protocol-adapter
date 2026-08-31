@@ -32,7 +32,9 @@ sort_imports = false                       # plain alphabetical sorting would fl
 # src/. Linting during build re-reported test and dependency code that the lane
 # ignores, so two sources disagreed.
 lint_on_build = false
-# exclude_lints = []        # silence a rule outright, after review
+# asm-keccak256 is a gas note, not a correctness finding, and fires on every
+# `keccak256(abi.encode(...))` — the form EIP-712 struct hashing is written in.
+exclude_lints = ["asm-keccak256"]
 # mixed_case_exceptions = ["ERC", "URI"]
 
 [profile.default.fuzz]
