@@ -12,3 +12,12 @@
 # not at the offending statement, so keys survive edits inside a function body.
 # They do not survive inserting or deleting lines above the function, which
 # means the finding is re-reviewed rather than silently inherited.
+
+# Both instances are the settlement reads in the constructor. The adapter has no
+# deployed code during its own construction, so settlement cannot call back into
+# a function that does not yet exist. The written state is three immutables,
+# which live in the deployed bytecode rather than storage, and _settlement is a
+# deploy-time argument. The detector anchors on the call rather than the write,
+# so it reports one instance per read even though every write follows both.
+reentrancy-state-change|src/CowProtocolAdapter.sol|26
+reentrancy-state-change|src/CowProtocolAdapter.sol|29

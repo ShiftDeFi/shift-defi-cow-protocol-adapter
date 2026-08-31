@@ -104,6 +104,15 @@ first, helpers last — so a reader meets the contract's surface before its inte
 
 **Storage.** Cache a storage variable in memory if it is read more than once in a scope.
 
+**Contract references.** Tokens and other contracts cross the external boundary as
+`address` — function parameters, return values, event parameters, and the fields of any
+struct that appears in one — and are cast to the interface type at the point of use:
+`IERC20(token).safeTransfer(...)`. State variables and immutables may be declared as the
+interface or contract type. Where a third-party interface or an external standard specifies
+an interface type in a signature this repo implements or calls, match that signature.
+`using SafeERC20 for IERC20` stays declared; it binds to the cast expression. Test fixtures
+are exempt.
+
 **Parameter validation.** Every external and public function validates its parameters and rejects invalid input with a named custom error. The rule is uniform: do not judge, per parameter, whether an invalid value would have failed anyway.
 
 The `aderyn` lane gates the one case tooling detects — an address parameter written to storage with no zero-check. Parameters passed onward to a call, numeric bounds, array lengths and relationships between two parameters are invisible to both engines and are the author's responsibility.
@@ -119,7 +128,16 @@ The `aderyn` lane gates the one case tooling detects — an address parameter wr
 ## Testing layout
 
 - `test/` — unit tests.
+- `test/mocks/` — stand-ins for third-party contracts, shared by every test directory. They
+  contain no test functions and mirror only the surface the adapter calls.
 - `test/invariant/` — property/invariant and fuzz tests. Split out because they are slow, and because they catch accounting and authorization errors that are only wrong relative to the rest of the contract and that static analysis misses.
+**Suite structure.** Tests for a contract live in `test/<ContractName>/`, one file per function
+under test (`Constructor.t.sol`, `Sweep.t.sol`), each inheriting `<ContractName>Base.sol` in the
+same directory. The base holds the fixture — constants, deployed contracts, `setUp` — and no
+test functions, hence no `.t.sol` suffix. `setUp` is `virtual`, and every override calls
+`super.setUp()` first. Invariant suites for the same contract inherit the same base. A contract
+whose tests still read in one sitting stays in a single `test/<ContractName>.t.sol`.
+
 - `test/fork/` — mainnet fork tests. Not part of `verify`; run via `make fork` with `ETH_RPC_URL` set. Pin the block in `setUp()` — forking `latest` makes runs non-reproducible.
 
 **Test naming.** Enforced by `script/gate_tests.py`. Every segment is PascalCase:
@@ -132,7 +150,7 @@ The `aderyn` lane gates the one case tooling detects — an address parameter wr
 | `testFuzz_Subject`, `testFuzz_RevertIf_Subject_Reason` | fuzzed variants |
 | `invariant_Property` | invariant and property tests |
 
-`Subject` is the function under test — `test_SetDefaultPriceFeedStalenessThreshold`, `test_RevertIf_SetDefaultPriceFeedStalenessThreshold_ZeroThreshold`.
+`Subject` is the function under test — `test_SetDefaultPriceFeedStalenessThreshold`, `test_RevertIf_SetDefaultPriceFeedStalenessThreshold_ZeroThreshold`. It stays in the name even when the file and contract already identify the function.
 
 The reason segment is required on a reverting test: it is what separates one revert path from another, and a test that reverts for the wrong reason still passes. `test_RevertIf_Subject` alone is rejected for that reason. `testFail_` is rejected outright — it passes on *any* revert, including one from an unrelated cause.
 
