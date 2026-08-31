@@ -6,8 +6,7 @@ import {Test} from "forge-std/Test.sol";
 import {IOwnerImmutable} from "src/interfaces/IOwnerImmutable.sol";
 import {OwnerImmutable} from "src/OwnerImmutable.sol";
 
-/// @notice Minimal concrete subject, so the base is tested on its own rather than
-///         only through whichever contract happens to inherit it.
+/// @notice Minimal concrete subject, so the base is exercised directly.
 contract OwnerImmutableHarness is OwnerImmutable {
     uint256 public calls;
 
