@@ -36,14 +36,12 @@ tools:
 	@aderyn --version
 	@python3 --version
 
-## fork : mainnet fork tests. Deliberately outside the gate in wall.mk — they
-##        need network access and ETH_RPC_URL, which CI does not hold, so they
-##        cannot be part of a hermetic, reproducible run. Pin the block in
-##        setUp(); forking `latest` makes runs non-reproducible.
+## fork : mainnet fork tests. Not part of `make verify`; needs ETH_RPC_URL.
+##        Pin the block in setUp() — forking `latest` makes runs non-reproducible.
 fork:
 	@if [ -z "$$ETH_RPC_URL" ]; then \
 	  echo "ETH_RPC_URL is unset — cannot run fork tests."; \
 	  echo "export ETH_RPC_URL=https://... (see [rpc_endpoints] in foundry.toml)"; \
 	  exit 1; \
 	fi
-	forge test --match-path "test/fork/*" -vvv
+	forge test --match-path "$(FORK_DIR)/*" -vvv

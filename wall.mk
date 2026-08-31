@@ -16,6 +16,7 @@ WALL_DIR := $(dir $(WALL_MK))
 
 SRC_DIR       ?= src
 INVARIANT_DIR ?= test/invariant
+FORK_DIR      ?= test/fork
 
 # --fail-medium => non-zero exit on any finding >= medium severity. Findings
 # acknowledged into slither.db.json (via `make triage`) are suppressed.
@@ -54,9 +55,13 @@ lint:
 ##        `forge test` exits 0 when it finds no tests, so the guard runs first
 ##        and rejects a tree that has contracts but no coverage. The same guard
 ##        checks test naming, which no Foundry tool covers.
+##
+##        Fork tests are excluded too: they need ETH_RPC_URL and a network
+##        round trip, which would make the gate neither hermetic nor offline.
+##        They run via `make fork`.
 test:
 	python3 $(WALL_DIR)script/gate_tests.py
-	forge test --no-match-path "$(INVARIANT_DIR)/*"
+	forge test --no-match-path "{$(INVARIANT_DIR),$(FORK_DIR)}/*"
 
 ## slither : static analysis. Writes a structured report and exits non-zero on
 ##           any finding at or above the threshold.
