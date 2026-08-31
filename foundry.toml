@@ -7,6 +7,10 @@ out = "out"
 libs = ["lib"]
 solc_version = "0.8.28" # Pinned; the gate must not float across solc versions.
 evm_version = "prague"
+# Remappings come from remappings.txt only. With auto-detection on, forge adds
+# every library under lib/ to whatever the file declares, so the file would not
+# be the full picture. Slither and Aderyn read the same resolved set.
+auto_detect_remappings = false
 optimizer = true
 optimizer_runs = 200
 

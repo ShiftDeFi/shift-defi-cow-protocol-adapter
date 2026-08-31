@@ -149,6 +149,8 @@ Pins live in `.github/workflows/wall.yml` and must match local versions; check w
 
 Dependencies are git submodules under `lib/`, pinned in `foundry.lock` (currently `forge-std` v1.16.2). Clone with `--recursive` or run `make install`; add new deps with `forge install`, not by hand.
 
+`auto_detect_remappings` is off, so `remappings.txt` is the complete set and a new dependency needs its remapping added there by hand — `forge install` alone will not make it importable. Slither and Aderyn resolve imports through the same file.
+
 ## Foundry profiles
 
 `[profile.default]` stays fast for the local loop. `[profile.ci]` is stricter — `deny_warnings = true` (compiler warnings fail the build), and heavier fuzz/invariant runs. CI sets `FOUNDRY_PROFILE=ci`.
