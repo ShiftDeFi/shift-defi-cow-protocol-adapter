@@ -1,6 +1,12 @@
 include wall.mk
 
-.PHONY: install tools hooks fork
+.PHONY: install tools hooks fork coverage coverage-lcov
+
+# Coverage builds with the optimizer disabled, which overflows the stack on
+# forge-std's cheatcode interface; --ir-minimum enables viaIR with minimal
+# optimization, which compiles. Branch percentages are unreliable under viaIR —
+# read lines, statements and functions.
+COVERAGE_ARGS := --ir-minimum --no-match-coverage '^(test|script)/'
 
 ## install : fetch pinned submodule dependencies and install the git hooks.
 install: hooks
@@ -11,6 +17,16 @@ install: hooks
 hooks:
 	git config core.hooksPath .githooks
 	@echo "git hooks -> .githooks/ (pre-commit runs make verify)"
+
+## coverage : coverage for src/ as a table, with the test and script trees left
+##            out of the report. Outside the gate.
+coverage:
+	forge coverage $(COVERAGE_ARGS)
+
+## coverage-lcov : the same run, written to lcov.info for editor gutters and
+##                 external coverage tooling.
+coverage-lcov:
+	forge coverage $(COVERAGE_ARGS) --report lcov
 
 ## tools : report the local toolchain. These must match the pins in
 ##         .github/workflows/wall.yml.

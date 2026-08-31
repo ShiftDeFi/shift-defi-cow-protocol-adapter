@@ -90,4 +90,4 @@ help:
 
 clean:
 	forge clean
-	rm -f slither.out.json aderyn.out.json
+	rm -f slither.out.json aderyn.out.json lcov.info
