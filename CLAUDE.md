@@ -70,6 +70,12 @@ Both exit 0 and stay silent when they do not apply — a turn that touches no So
 
 To opt out locally, disable or override the hooks in `.claude/settings.local.json`, which is untracked. Changes under `.claude/` are executable configuration and warrant the same review as `src/`.
 
+## Commits
+
+**Never add a `Co-Authored-By` trailer, and never attribute a commit to the tooling used to write it.** This applies to every commit without exception, including ones authored entirely by an agent. A commit message describes the change; how it was produced is not part of the record.
+
+The same reasoning as the comment rule under [Project](#project): this repository is public, and its history documents the code rather than the process behind it.
+
 ## Code style
 
 Formatting and naming are enforced, not documented: `forge fmt` settings are pinned in `foundry.toml` (including `int_types = "long"`, so `uint256`/`int256` are automatic), and the `lint` lane gates on `forge lint`, which covers casing. Do not restate those rules here — the rules below are the ones no tool checks.
