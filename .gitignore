@@ -27,6 +27,7 @@ docs/
 # path list; both write a cache next to the source.
 script/__pycache__/
 .claude/hooks/__pycache__/
+.claude/__pycache__/
 
 # Coverage
 lcov.info

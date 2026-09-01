@@ -3,7 +3,7 @@
 
 Renders as:
 
-    feat/adapter  Wall: OK  Opus 5  ctx 27% 274k/1.0M  5-hour usage 53% (resets 16:30)  7-day usage 17%
+    feat/adapter  Wall: OK  Opus 5  ctx 27% 274k/1.0M  5-hour usage 53% (resets 16:30, in 1h05m)  7-day usage 17%
 
 Claude Code invokes this on every render, so it does one `git` call and no
 `make` or `forge` — running the gate here would cost seconds per keystroke.
@@ -21,13 +21,22 @@ from `context_window` and `rate_limits`, and every one is optional: a payload
 missing a key drops that element rather than failing, so a change to the
 payload shape degrades the line instead of breaking it.
 
-The five-hour window carries the wall-clock time it replenishes, from its
-`resets_at` epoch. A countdown was tried first and is wrong for this surface:
-the line re-renders on activity, not on a timer, so "resets in 53m" sits on
-screen unchanged while those 53 minutes elapse and reads as current when it is
-not. A clock time says the same thing however long the line has been sitting
-there. The seven-day window carries nothing: at several days out the figure is
-noise, and the line is already wide.
+The five-hour window carries both the wall-clock time it replenishes and how
+long that is away, from its `resets_at` epoch. The two answer different
+questions — whether the wait fits the next task, and what time to come back —
+and a bare countdown would need the line to re-render on a timer to stay true.
+It does: `statusLine.refreshInterval` in .claude/settings.json re-runs this
+command every REFRESH_SECONDS on top of the event-driven renders, and Claude
+Code separately re-renders at `resets_at` itself, so the window turning over
+shows immediately.
+
+The remaining figure is floored to that same cadence, because a finer one would
+claim a precision the refresh does not deliver: between two renders the value
+on screen drifts by up to REFRESH_SECONDS, in either direction. Read it as
+accurate to five minutes.
+
+The seven-day window carries nothing: at several days out the figure is noise,
+and the line is already wide.
 
 On first run the payload is written to .git/statusline-payload.json, which is
 where these field names came from. Delete that file to capture it again after a
@@ -53,6 +62,10 @@ BLUE = "\033[38;5;110m"
 
 # Usage percentages above these turn amber, then red.
 WARN, ALARM = 60, 85
+
+# Must match `statusLine.refreshInterval` in .claude/settings.json, which is how
+# often this command is re-run and so how fresh a countdown can be.
+REFRESH_SECONDS = 300
 
 
 def paint(percent: float, text: str) -> str:
@@ -101,21 +114,40 @@ def context(payload: dict) -> str | None:
     return paint(percent, f"ctx {percent:.0f}%")
 
 
+def time_left(seconds: float) -> str:
+    """"in 1h05m" from a number of seconds, floored to the refresh cadence.
+
+    Below one cadence step there is no figure the refresh can keep honest, so
+    the span is named rather than counted: "in <5m".
+    """
+    step = max(1, REFRESH_SECONDS // 60)
+    minutes = int(seconds // 60) // step * step
+    if minutes < step:
+        return f"in <{step}m"
+    hours, minutes = divmod(minutes, 60)
+    if hours:
+        return f"in {hours}h{minutes:02d}m"
+    return f"in {minutes}m"
+
+
 def resets_when(window: dict) -> str:
-    """" (resets 16:30)" from a `resets_at` epoch, as a local wall-clock time.
+    """" (resets 16:30, in 1h05m)" from a `resets_at` epoch, in local time.
 
     Empty when there is nothing useful to say: the field is absent, it is not a
     time this platform can represent, or the window has already turned over and
     the next payload will carry the replacement.
     """
     at = window.get("resets_at")
-    if not isinstance(at, (int, float)) or at <= time.time():
+    if not isinstance(at, (int, float)):
+        return ""
+    left = at - time.time()
+    if left <= 0:
         return ""
     try:
         moment = time.localtime(at)
     except (OSError, OverflowError, ValueError):
         return ""
-    return f" (resets {time.strftime('%H:%M', moment)})"
+    return f" (resets {time.strftime('%H:%M', moment)}, {time_left(left)})"
 
 
 def quota(payload: dict) -> list[str]:

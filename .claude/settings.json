@@ -6,7 +6,8 @@
   },
   "statusLine": {
     "type": "command",
-    "command": "python3 .claude/statusline.py"
+    "command": "python3 .claude/statusline.py",
+    "refreshInterval": 300
   },
   "hooks": {
     "UserPromptSubmit": [
