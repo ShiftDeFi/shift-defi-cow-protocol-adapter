@@ -4,11 +4,6 @@
         "Read(./.env)"
       ]
   },
-  "statusLine": {
-    "type": "command",
-    "command": "python3 .claude/statusline.py",
-    "refreshInterval": 300
-  },
   "hooks": {
     "UserPromptSubmit": [
       {
