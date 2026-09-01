@@ -5,9 +5,33 @@
       ]
   },
   "hooks": {
-    "PostToolUse": [
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 .claude/hooks/wall_turn_start.py",
+            "timeout": 15
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
       {
         "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 .claude/hooks/wall_guard.py",
+            "timeout": 15,
+            "statusMessage": "Wall: guarding the gate"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit|Bash",
         "hooks": [
           {
             "type": "command",

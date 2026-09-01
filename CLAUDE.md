@@ -62,14 +62,24 @@ Adding a triage entry is a human review decision. Propose entries with reasoning
 
 ## Agent hooks
 
-`.claude/settings.json` wires the gate into Claude Code sessions, so generated Solidity is checked as it is written rather than only at push time. Both hooks live in `.claude/hooks/` and call the same `make` targets as CI.
+`.claude/settings.json` wires the gate into Claude Code sessions, so generated Solidity is checked as it is written rather than only at push time. The hooks live in `.claude/hooks/` and call the same `make` targets as CI.
 
 | Event | Script | Behaviour |
 |---|---|---|
+| `UserPromptSubmit` | `wall_turn_start.py` | Hashes every file that defines the gate, so the `Stop` hook can distinguish what this turn changed from what was already uncommitted when it began. |
+| `PreToolUse` on `Write`/`Edit` | `wall_guard.py` | Refuses writes to the gate itself — `aderyn.triage`, `slither.db.json`, `wall.mk`, `Makefile`, `script/*.py`, `.githooks/`, `.github/workflows/`, `.claude/settings*.json`, `.claude/hooks/*.py` — and to the gate settings inside `foundry.toml`, which holds those next to routine ones and so is checked by key rather than by path. Reading any of them is unaffected. |
 | `PostToolUse` on `Write`/`Edit`/`Bash` | `wall_post_edit.py` | For `.sol` files: applies `forge fmt`, then `forge build`. A compile error is returned to the model in-turn. `Write` and `Edit` name their file; for `Bash` the hook diffs a snapshot of every `.sol` file's mtime and size, so a contract written with a heredoc, an in-place stream edit or a script is caught too. The snapshot lives in `.git/`. |
-| `Stop` | `wall_stop.py` | If any `.sol` differs in the working tree, runs `make verify`. A red gate prevents the turn ending. |
+| `Stop` | `wall_stop.py` | Compares the gate against the `UserPromptSubmit` baseline and blocks if this turn moved it, whatever route the write took. Then, if any `.sol` differs in the working tree, runs `make verify`. A red gate prevents the turn ending. |
 
-Both exit 0 and stay silent when they do not apply — a turn that touches no Solidity is unaffected. The `Stop` hook also stands down, with a notice, when the toolchain is not installed, and when resuming from its own previous block, so a failure it cannot fix does not trap the session. Neither case weakens CI, which enforces the gate unconditionally.
+All three exit 0 and stay silent when they do not apply — a turn that touches no Solidity is unaffected. The `Stop` hook also stands down, with a notice, when the toolchain is not installed, and when resuming from its own previous block, so a failure it cannot fix does not trap the session. Neither case weakens CI, which enforces the gate unconditionally.
+
+The two hooks that protect the gate divide the work by what each can know for certain. `wall_guard.py` sees the file a `Write` or an `Edit` is about to change, so it can refuse exactly. It does not inspect shell commands: matching patterns against command text was tried and is the wrong instrument — it refused commands that merely *quoted* a protected path, documentation about the gate among them, while still missing a write buried in a heredoc body. So a write through the shell is caught instead by its effect, when `wall_stop.py` compares the gate against the turn's opening state. The comparison is of file contents, so no route evades it and nothing that only mentions a path trips it. The cost is that the report arrives at the end of the turn rather than at the call. Both hooks share their list of protected files, in `.claude/hooks/wall_protected.py`.
+
+Two bypasses that edit no file — `git commit --no-verify` and `WALL_REQUIRE_INVARIANT=0` — are not intercepted either, because neither survives contact with the gate: the `Stop` hook runs `make verify` on the tree without the override, and CI runs it again on the pull request.
+
+None of this is a security boundary: `WALL_GUARD=0` in the session environment lifts the guard, and the person at the terminal can always edit the file directly. What it removes is the quiet path. Silencing a lane becomes a deliberate act with a diff attached, rather than something that happens in passing on the way to a green run — and review of that diff is what actually enforces the gate.
+
+`WALL_GUARD=0` is also how to work on the wall itself. Export it for a session whose purpose is changing the hooks or the gate scripts; leave it unset otherwise. Without it an agent cannot edit those files at all, which is the intended default — a session that needs to has to say so first.
 
 To opt out locally, disable or override the hooks in `.claude/settings.local.json`, which is untracked. Changes under `.claude/` are executable configuration and warrant the same review as `src/`.
 

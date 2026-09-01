@@ -22,9 +22,11 @@ docs/
 # shared hooks; this file is each developer's own override and stays untracked.
 .claude/settings.local.json
 
-# Byte-compiled gate scripts. retriage_aderyn.py imports gate_aderyn for
-# the gating rules, which writes a cache next to them.
+# Byte-compiled gate scripts and hooks. retriage_aderyn.py imports gate_aderyn
+# for the gating rules, and the hooks import wall_protected for the protected
+# path list; both write a cache next to the source.
 script/__pycache__/
+.claude/hooks/__pycache__/
 
 # Coverage
 lcov.info
