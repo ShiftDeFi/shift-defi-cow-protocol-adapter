@@ -17,7 +17,8 @@ contract SweepHandler is Test {
     /// @notice Every token amount that has ever arrived at the adapter.
     uint256 public delivered;
 
-    /// @notice Set if a sweep ever returned successfully while leaving a balance behind.
+    /// @notice Set if a sweep ever returned successfully while leaving behind more than the
+    ///         balance committed to pending orders.
     bool public sweptPartially;
 
     constructor(CowProtocolAdapter _adapter, ERC20Mock _token, address _owner) {
@@ -38,7 +39,9 @@ contract SweepHandler is Test {
     function sweepAsOwner() external {
         vm.prank(OWNER);
         try ADAPTER.sweep(address(TOKEN)) {
-            if (TOKEN.balanceOf(address(ADAPTER)) != 0) sweptPartially = true;
+            if (TOKEN.balanceOf(address(ADAPTER)) != ADAPTER.committedAmount(address(TOKEN))) {
+                sweptPartially = true;
+            }
         } catch {}
     }
 
