@@ -3,7 +3,7 @@
 
 Renders as:
 
-    feat/adapter  Wall: OK  Opus 5  ctx 27% 274k/1.0M  5-hour usage 53% (resets in 53m)  7-day usage 17%
+    feat/adapter  Wall: OK  Opus 5  ctx 27% 274k/1.0M  5-hour usage 53% (resets 16:30)  7-day usage 17%
 
 Claude Code invokes this on every render, so it does one `git` call and no
 `make` or `forge` — running the gate here would cost seconds per keystroke.
@@ -21,9 +21,13 @@ from `context_window` and `rate_limits`, and every one is optional: a payload
 missing a key drops that element rather than failing, so a change to the
 payload shape degrades the line instead of breaking it.
 
-The five-hour window carries how long until it replenishes, from its `resets_at`
-epoch. The seven-day window does not: at several days out the figure is noise,
-and the line is already wide.
+The five-hour window carries the wall-clock time it replenishes, from its
+`resets_at` epoch. A countdown was tried first and is wrong for this surface:
+the line re-renders on activity, not on a timer, so "resets in 53m" sits on
+screen unchanged while those 53 minutes elapse and reads as current when it is
+not. A clock time says the same thing however long the line has been sitting
+there. The seven-day window carries nothing: at several days out the figure is
+noise, and the line is already wide.
 
 On first run the payload is written to .git/statusline-payload.json, which is
 where these field names came from. Delete that file to capture it again after a
@@ -97,26 +101,21 @@ def context(payload: dict) -> str | None:
     return paint(percent, f"ctx {percent:.0f}%")
 
 
-def resets_in(window: dict) -> str:
-    """" (resets in 2h 10m)" from a `resets_at` epoch, or empty when there is
-    nothing useful to say — the field is absent, or the window has already
-    turned over and the next payload will carry the new one."""
+def resets_when(window: dict) -> str:
+    """" (resets 16:30)" from a `resets_at` epoch, as a local wall-clock time.
+
+    Empty when there is nothing useful to say: the field is absent, it is not a
+    time this platform can represent, or the window has already turned over and
+    the next payload will carry the replacement.
+    """
     at = window.get("resets_at")
-    if not isinstance(at, (int, float)):
+    if not isinstance(at, (int, float)) or at <= time.time():
         return ""
-    seconds = int(at - time.time())
-    if seconds <= 0:
+    try:
+        moment = time.localtime(at)
+    except (OSError, OverflowError, ValueError):
         return ""
-    hours, minutes = divmod(round(seconds / 60), 60)
-    if hours and minutes:
-        span = f"{hours}h {minutes}m"
-    elif hours:
-        span = f"{hours}h"
-    elif minutes:
-        span = f"{minutes}m"
-    else:
-        span = "under a minute"
-    return f" (resets in {span})"
+    return f" (resets {time.strftime('%H:%M', moment)})"
 
 
 def quota(payload: dict) -> list[str]:
@@ -124,7 +123,7 @@ def quota(payload: dict) -> list[str]:
     if not isinstance(limits, dict):
         return []
     out = []
-    for key, label, countdown in (
+    for key, label, show_reset in (
         ("five_hour", "5-hour usage", True),
         ("seven_day", "7-day usage", False),
     ):
@@ -133,7 +132,7 @@ def quota(payload: dict) -> list[str]:
             continue
         percent = window.get("used_percentage")
         if isinstance(percent, (int, float)):
-            suffix = resets_in(window) if countdown else ""
+            suffix = resets_when(window) if show_reset else ""
             out.append(paint(percent, f"{label} {percent:.0f}%{suffix}"))
     return out
 
