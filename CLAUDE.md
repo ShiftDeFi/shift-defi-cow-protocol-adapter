@@ -66,7 +66,7 @@ Adding a triage entry is a human review decision. Propose entries with reasoning
 
 | Event | Script | Behaviour |
 |---|---|---|
-| `PostToolUse` on `Write`/`Edit` | `wall_post_edit.py` | For `.sol` files: applies `forge fmt`, then `forge build`. A compile error is returned to the model in-turn. |
+| `PostToolUse` on `Write`/`Edit`/`Bash` | `wall_post_edit.py` | For `.sol` files: applies `forge fmt`, then `forge build`. A compile error is returned to the model in-turn. `Write` and `Edit` name their file; for `Bash` the hook diffs a snapshot of every `.sol` file's mtime and size, so a contract written with a heredoc, an in-place stream edit or a script is caught too. The snapshot lives in `.git/`. |
 | `Stop` | `wall_stop.py` | If any `.sol` differs in the working tree, runs `make verify`. A red gate prevents the turn ending. |
 
 Both exit 0 and stay silent when they do not apply — a turn that touches no Solidity is unaffected. The `Stop` hook also stands down, with a notice, when the toolchain is not installed, and when resuming from its own previous block, so a failure it cannot fix does not trap the session. Neither case weakens CI, which enforces the gate unconditionally.
