@@ -3,7 +3,7 @@
 
 Renders as:
 
-    feat/adapter  Wall: OK  Opus 5  ctx 27% 274k/1.0M  5-hour usage 53%  7-day usage 17%
+    feat/adapter  Wall: OK  Opus 5  ctx 27% 274k/1.0M  5-hour usage 53% (resets in 53m)  7-day usage 17%
 
 Claude Code invokes this on every render, so it does one `git` call and no
 `make` or `forge` — running the gate here would cost seconds per keystroke.
@@ -21,6 +21,10 @@ from `context_window` and `rate_limits`, and every one is optional: a payload
 missing a key drops that element rather than failing, so a change to the
 payload shape degrades the line instead of breaking it.
 
+The five-hour window carries how long until it replenishes, from its `resets_at`
+epoch. The seven-day window does not: at several days out the figure is noise,
+and the line is already wide.
+
 On first run the payload is written to .git/statusline-payload.json, which is
 where these field names came from. Delete that file to capture it again after a
 Claude Code upgrade.
@@ -30,6 +34,7 @@ import json
 import pathlib
 import subprocess
 import sys
+import time
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 PAYLOAD_DUMP = ROOT / ".git" / "statusline-payload.json"
@@ -92,18 +97,44 @@ def context(payload: dict) -> str | None:
     return paint(percent, f"ctx {percent:.0f}%")
 
 
+def resets_in(window: dict) -> str:
+    """" (resets in 2h 10m)" from a `resets_at` epoch, or empty when there is
+    nothing useful to say — the field is absent, or the window has already
+    turned over and the next payload will carry the new one."""
+    at = window.get("resets_at")
+    if not isinstance(at, (int, float)):
+        return ""
+    seconds = int(at - time.time())
+    if seconds <= 0:
+        return ""
+    hours, minutes = divmod(round(seconds / 60), 60)
+    if hours and minutes:
+        span = f"{hours}h {minutes}m"
+    elif hours:
+        span = f"{hours}h"
+    elif minutes:
+        span = f"{minutes}m"
+    else:
+        span = "under a minute"
+    return f" (resets in {span})"
+
+
 def quota(payload: dict) -> list[str]:
     limits = payload.get("rate_limits")
     if not isinstance(limits, dict):
         return []
     out = []
-    for key, label in (("five_hour", "5-hour usage"), ("seven_day", "7-day usage")):
+    for key, label, countdown in (
+        ("five_hour", "5-hour usage", True),
+        ("seven_day", "7-day usage", False),
+    ):
         window = limits.get(key)
         if not isinstance(window, dict):
             continue
         percent = window.get("used_percentage")
         if isinstance(percent, (int, float)):
-            out.append(paint(percent, f"{label} {percent:.0f}%"))
+            suffix = resets_in(window) if countdown else ""
+            out.append(paint(percent, f"{label} {percent:.0f}%{suffix}"))
     return out
 
 
