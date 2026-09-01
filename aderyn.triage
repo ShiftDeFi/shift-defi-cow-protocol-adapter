@@ -19,5 +19,5 @@
 # which live in the deployed bytecode rather than storage, and _settlement is a
 # deploy-time argument. The detector anchors on the call rather than the write,
 # so it reports one instance per read even though every write follows both.
-reentrancy-state-change|src/CowProtocolAdapter.sol|26
-reentrancy-state-change|src/CowProtocolAdapter.sol|29
+reentrancy-state-change|src/CowProtocolAdapter.sol|30
+reentrancy-state-change|src/CowProtocolAdapter.sol|33
