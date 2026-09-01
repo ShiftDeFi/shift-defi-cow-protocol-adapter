@@ -30,3 +30,7 @@ script/__pycache__/
 
 # Coverage
 lcov.info
+
+# macOS system files
+.DS_Store
+**/.DS_Store
