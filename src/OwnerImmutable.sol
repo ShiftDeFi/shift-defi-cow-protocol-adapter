@@ -10,8 +10,7 @@ import {IOwnerImmutable} from "./interfaces/IOwnerImmutable.sol";
 abstract contract OwnerImmutable is IOwnerImmutable {
     address internal immutable OWNER;
 
-    /// @dev Restricts a function to the owner. The check stays in `_checkOwner`; inlining it
-    ///      here trips the `unwrapped-modifier-logic` lint.
+    /// @dev Restricts a function to the owner.
     modifier onlyOwner() {
         _checkOwner();
         _;
@@ -23,6 +22,7 @@ abstract contract OwnerImmutable is IOwnerImmutable {
         emit OwnerSet(_owner);
     }
 
+    /// @inheritdoc IOwnerImmutable
     function owner() external view returns (address) {
         return OWNER;
     }

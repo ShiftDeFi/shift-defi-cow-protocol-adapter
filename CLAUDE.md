@@ -131,6 +131,8 @@ The `aderyn` lane gates the one case tooling detects — an address parameter wr
 
 **Interfaces.** Split every contract into interface and implementation. Custom errors, events, function signatures, enums and structs are declared in the interface file. Interface functions appear in the same order as in the implementation. Functions, events and errors take named parameters and carry full NatSpec.
 
+NatSpec lives in the interface and is never duplicated in the implementation: every implementing function carries `/// @inheritdoc <Interface>` and nothing else. An implementation-only function — a constructor, an `internal` helper — documents itself with `@dev` and `@param` in place.
+
 ## Testing layout
 
 - `test/` — unit tests.
