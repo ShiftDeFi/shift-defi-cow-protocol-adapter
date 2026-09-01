@@ -20,6 +20,7 @@ make help          # list targets
 make tools         # local toolchain versions (must match the CI pins)
 make install       # git submodule update --init --recursive
 make fork          # mainnet fork tests; needs ETH_RPC_URL
+make test-hooks    # exercise the agent hooks; outside the gate, run by CI
 make triage        # interactive Slither triage (human review step)
 make retriage      # re-anchor accepted aderyn keys whose finding only moved
 make clean
@@ -82,6 +83,10 @@ Two bypasses that edit no file — `git commit --no-verify` and `WALL_REQUIRE_IN
 None of this is a security boundary: `WALL_GUARD=0` in the session environment lifts the guard, and the person at the terminal can always edit the file directly. What it removes is the quiet path. Silencing a lane becomes a deliberate act with a diff attached, rather than something that happens in passing on the way to a green run — and review of that diff is what actually enforces the gate.
 
 `WALL_GUARD=0` is also how to work on the wall itself. Export it for a session whose purpose is changing the hooks or the gate scripts; leave it unset otherwise. Without it an agent cannot edit those files at all, which is the intended default — a session that needs to has to say so first.
+
+`script/test_hooks.py` covers the part of the hooks that makes a decision — which writes `wall_guard.py` refuses, the baseline `wall_turn_start.py` records, and the comparison `wall_stop.py` runs — by executing the installed hook against a throwaway repository built at the layout they expect. It is the only thing that reads them: the `lint` lane is scoped to `src/` and the analysis lanes read Solidity, so a regression here would otherwise be silent, with the gate still reporting green while it stopped being enforced.
+
+Run it with `make test-hooks`. It is outside `make verify` deliberately — the `Stop` hook runs verify on every turn that touches Solidity, and this adds a couple of seconds that say nothing about the contracts — and CI runs it as its own step ahead of the gate, so a broken hook fails in seconds rather than after the full suite. `wall_post_edit.py` is not covered: its decision is only whether a `.sol` file moved, and the part worth testing is `forge fmt` and `forge build`, which ordinary editing exercises continuously.
 
 To opt out locally, disable or override the hooks in `.claude/settings.local.json`, which is untracked. Changes under `.claude/` are executable configuration and warrant the same review as `src/`.
 

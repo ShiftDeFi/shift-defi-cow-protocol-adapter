@@ -81,5 +81,10 @@ jobs:
       - name: Toolchain report
         run: make tools
 
+      # Cheap, and independent of the contracts, so it runs before the gate:
+      # a broken hook fails here in seconds rather than after the full suite.
+      - name: make test-hooks
+        run: make test-hooks
+
       - name: make verify
         run: make verify

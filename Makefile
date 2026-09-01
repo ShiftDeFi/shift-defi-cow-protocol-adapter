@@ -1,6 +1,6 @@
 include wall.mk
 
-.PHONY: install tools hooks fork coverage coverage-lcov
+.PHONY: install tools hooks test-hooks fork coverage coverage-lcov
 
 # Coverage builds with the optimizer disabled, which overflows the stack on
 # forge-std's cheatcode interface; --ir-minimum enables viaIR with minimal
@@ -17,6 +17,18 @@ install: hooks
 hooks:
 	git config core.hooksPath .githooks
 	@echo "git hooks -> .githooks/ (pre-commit runs make verify)"
+
+## test-hooks : exercise the agent hooks in .claude/hooks/. They decide what an
+##              agent may write, so a regression in them is silent — the gate
+##              keeps reporting green while it stops being enforced — and no
+##              other lane reads them.
+##
+##              Outside `make verify` on purpose: the Stop hook runs verify on
+##              every turn that touches Solidity, and this adds a couple of
+##              seconds that say nothing about the contracts. CI runs it as its
+##              own step, before the gate, so a broken hook fails in seconds.
+test-hooks:
+	python3 script/test_hooks.py
 
 ## coverage : coverage for src/ as a table, with the test and script trees left
 ##            out of the report. Outside the gate.
