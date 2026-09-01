@@ -21,6 +21,7 @@ make tools         # local toolchain versions (must match the CI pins)
 make install       # git submodule update --init --recursive
 make fork          # mainnet fork tests; needs ETH_RPC_URL
 make triage        # interactive Slither triage (human review step)
+make retriage      # re-anchor accepted aderyn keys whose finding only moved
 make clean
 ```
 
@@ -50,6 +51,8 @@ Both analysis lanes gate on findings, and both record accepted findings as revie
 
 - **Slither** — `--fail-medium`, so anything at medium or above fails. Optimization-severity detectors (`immutable-states`, `cache-array-length`, and three others) are reported but do not gate, since the threshold is deliberately set at correctness. Acknowledge via `make triage`, which writes `slither.db.json`.
 - **Aderyn** — `script/gate_aderyn.py` gates per finding *instance*, keyed `detector|path|line`, against `aderyn.triage`. A new instance of an already-accepted detector is a new key and still fails. Aderyn anchors an instance at the enclosing function declaration, so keys survive edits inside a function body but not line insertions above it.
+
+  A key is anchored by line, so a line inserted above a reviewed finding renumbers it and the lane fails on something that is not a new finding at all. `make retriage` re-anchors those: it pairs a stale key with a current finding when the detector, the path and the anchored source text all match — old text from `HEAD`, new text from the working tree — and refuses to pair ambiguously. It never adds a key and never removes one, so accepting a finding and dropping a fixed one both stay human decisions. `--check` reports without writing.
 
   Aderyn reports only two severities. All high findings gate; from the low band, only the detectors listed in `GATED_LOW_DETECTORS` in `gate_aderyn.py` do. That band mixes advisory findings — `centralization-risk` fires on every owner-gated function — with rules this repo treats as binding, so detectors are promoted individually rather than by lowering the threshold. Currently promoted: `state-change-without-event`, `state-no-address-check`.
 

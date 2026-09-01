@@ -99,6 +99,8 @@ def main(argv: list[str]) -> int:
         for k in new:
             print(f"  - {k}")
         print("Fix the code, or add the key to aderyn.triage after review.")
+        print("If these are accepted findings that only moved, `make retriage`")
+        print("re-anchors them without accepting anything new.")
         return 1
     return 0
 

@@ -22,7 +22,7 @@ FORK_DIR      ?= test/fork
 # acknowledged into slither.db.json (via `make triage`) are suppressed.
 SLITHER_ARGS := --config-file $(WALL_DIR)slither.config.json --fail-medium
 
-.PHONY: verify fmt build lint test slither aderyn invariant triage help clean
+.PHONY: verify fmt build lint test slither aderyn invariant triage retriage help clean
 
 ## verify : the full gate. Prerequisites run left-to-right, cheapest first.
 verify: fmt build lint test slither aderyn invariant
@@ -88,6 +88,16 @@ invariant:
 ##          Requires human review; aderyn's equivalent is editing aderyn.triage.
 triage:
 	slither . --config-file $(WALL_DIR)slither.config.json --triage-mode
+
+## retriage : re-anchor accepted aderyn keys whose finding only moved. A key
+##            is keyed by line, so inserting a line above a reviewed finding
+##            renumbers it; this pairs the stale key with the current finding
+##            when the anchored source text is identical. It never accepts a
+##            new finding and never removes a key — both stay human decisions.
+##            Pass --check to report without writing.
+retriage:
+	aderyn . --src $(SRC_DIR) --output aderyn.out.json
+	python3 $(WALL_DIR)script/retriage_aderyn.py aderyn.out.json
 
 ## help : list available targets.
 help:
