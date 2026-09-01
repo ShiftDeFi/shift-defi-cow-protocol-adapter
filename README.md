@@ -60,6 +60,15 @@ fast way to iterate on one failure. `make help` lists every target.
 Two analysis engines are used deliberately: they have uncorrelated blind spots,
 and findings that neither reports are the reason the invariant lane exists.
 
+The test guard runs ahead of the analysis lanes on purpose. On a tree that has
+contracts but no tests it fails there with a clear message, rather than reaching
+`slither`, which aborts with `InvalidCompilation` on an empty `src/`.
+
+The agent hooks under `.claude/` carry their own suite, `make test-hooks`. It is
+not part of `make verify` — the hooks run the gate themselves, and a couple of
+seconds per turn buys nothing about the contracts — but CI runs it as its own
+step ahead of the gate.
+
 ### Triage
 
 Both analysis lanes gate on findings and record accepted ones as reviewed state
@@ -69,6 +78,12 @@ that is committed alongside the code:
 - **Aderyn** — acknowledged findings are keyed `detector|path|line` in
   `aderyn.triage`. A new instance of an already-accepted detector is a new key,
   and still fails.
+
+Because an Aderyn key is anchored by line, inserting a line above a reviewed
+finding renumbers it, and the lane fails on something that is not a new finding
+at all. `make retriage` re-anchors those: it pairs a stale key with a current
+finding only where the anchored source text is unchanged, and it never accepts a
+new finding nor removes an existing one.
 
 Adding a triage entry is a human review decision and requires reasoning recorded
 alongside it.

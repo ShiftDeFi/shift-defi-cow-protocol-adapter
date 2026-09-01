@@ -6,13 +6,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 `shift-defi-cow-protocol-adapter` (ShiftDeFi) — a Foundry/Solidity project for a CoW Protocol adapter.
 
-**Current state:** the verification gate is in place. `src/` holds `OwnerImmutable` (immutable single-owner access control) and `CowProtocolAdapter`, which currently exposes `sweep` — order placement and fill detection are not implemented yet.
+**Current state:** the verification gate is in place. `src/` holds `OwnerImmutable` (immutable single-owner access control), the `GPv2Order` library (CoW Protocol's order type and identifier derivation) and `CowProtocolAdapter`, which exposes `placeOrder` and `sweep` with views over pending orders and committed balances. Fill detection is not implemented yet.
 
 This repo is public. Keep comments in committed files factual and about what the code does; no internal planning, roadmap, or deliberation.
 
 ## The gate
 
-`make verify` is the gate, and CI runs the same target. Lanes run cheapest-first: `fmt` → `build` → `lint` → `test` → `slither` → `aderyn` → `invariant`.
+`make verify` is the gate, and CI runs the same target. Lanes run cheapest-first: `fmt` → `build` → `lint` → `test` → `slither` → `aderyn` → `invariant`. Each runs standalone (`make lint`, `make slither`, …), which is the fast way to iterate on one failure. README.md describes what every lane checks, and each gate script documents its own mechanics and blind spots.
 
 ```shell
 make verify        # the full gate
@@ -26,69 +26,27 @@ make retriage      # re-anchor accepted aderyn keys whose finding only moved
 make clean
 ```
 
-Individual lanes (`make build`, `make lint`, `make test`, `make slither`, `make aderyn`, `make invariant`) run standalone, which is the fast way to iterate on one failure.
+**Lint.** Suppress a rule in `foundry.toml` under `[lint]` — `exclude_lints` or `mixed_case_exceptions` — after review, rather than in a triage file next to the script. The lane is scoped to `src/`.
 
-### Lint gate
+**Tests.** Unit tests are always required, and invariant tests under `test/invariant/` are required by default; `WALL_REQUIRE_INVARIANT=0` stages adoption. Layout and naming are enforced — see `test/CLAUDE.md`.
 
-`forge lint` prints findings but exits 0, so `script/gate_lint.py` parses its JSON and fails on any diagnostic. Note the JSON goes to stderr, not stdout. Suppress a rule in `foundry.toml` under `[lint]` — `exclude_lints` or `mixed_case_exceptions` — after review, rather than in a separate triage file.
+**Triage.** Slither fails at medium severity and above; acknowledge a finding with `make triage`, which writes `slither.db.json`. Aderyn gates per finding *instance*, keyed `detector|path|line` in `aderyn.triage`, so a new instance of an already-accepted detector still fails. Every high finding gates; from the low band only the detectors promoted in `gate_aderyn.py` do — currently `state-change-without-event` and `state-no-address-check`. When a key stops matching because a line was inserted above it, `make retriage` re-anchors it without accepting anything new.
 
-The lane is scoped to `src/`; test code is not linted, since fixtures legitimately use idioms the linter flags. `lint_on_build` is off so this lane is the only source of lint findings.
-
-### Test guard
-
-`script/gate_tests.py` runs before `forge test` and checks two things against one `forge test --list --json` listing.
-
-**Presence.** `forge test` exits 0 when it finds no tests, so the guard counts them first and fails when either category is empty. Unit tests are always required; invariant tests under `test/invariant/` are required by default — set `WALL_REQUIRE_INVARIANT=0` to stage adoption.
-
-This is also what makes the gate safe on a tree with no contracts: it runs before the analysis lanes, so `make verify` fails there with a clear message rather than reaching `slither`, which aborts with `InvalidCompilation` on an empty `src/`.
-
-**Naming.** Nothing in Foundry checks test names, and the `lint` lane is scoped to `src/`, so this guard is the only enforcement. See [Testing layout](#testing-layout) for the accepted forms.
-
-Its one blind spot: the listing contains only functions Foundry already recognises as tests, so a misspelled prefix (`tets_Foo`) is invisible here — and silently never runs.
-
-### Triage
-
-Both analysis lanes gate on findings, and both record accepted findings as reviewed state that is committed:
-
-- **Slither** — `--fail-medium`, so anything at medium or above fails. Optimization-severity detectors (`immutable-states`, `cache-array-length`, and three others) are reported but do not gate, since the threshold is deliberately set at correctness. Acknowledge via `make triage`, which writes `slither.db.json`.
-- **Aderyn** — `script/gate_aderyn.py` gates per finding *instance*, keyed `detector|path|line`, against `aderyn.triage`. A new instance of an already-accepted detector is a new key and still fails. Aderyn anchors an instance at the enclosing function declaration, so keys survive edits inside a function body but not line insertions above it.
-
-  A key is anchored by line, so a line inserted above a reviewed finding renumbers it and the lane fails on something that is not a new finding at all. `make retriage` re-anchors those: it pairs a stale key with a current finding when the detector, the path and the anchored source text all match — old text from `HEAD`, new text from the working tree — and refuses to pair ambiguously. It never adds a key and never removes one, so accepting a finding and dropping a fixed one both stay human decisions. `--check` reports without writing.
-
-  Aderyn reports only two severities. All high findings gate; from the low band, only the detectors listed in `GATED_LOW_DETECTORS` in `gate_aderyn.py` do. That band mixes advisory findings — `centralization-risk` fires on every owner-gated function — with rules this repo treats as binding, so detectors are promoted individually rather than by lowering the threshold. Currently promoted: `state-change-without-event`, `state-no-address-check`.
-
-Adding a triage entry is a human review decision. Propose entries with reasoning; do not add them unilaterally.
+**Adding a triage entry is a human review decision. Propose entries with reasoning; do not add them unilaterally** — the guard below refuses the write in any case.
 
 `slither.out.json` and `aderyn.out.json` are regenerated each run and gitignored. `aderyn.triage` and `slither.db.json` are committed.
 
 ## Agent hooks
 
-`.claude/settings.json` wires the gate into Claude Code sessions, so generated Solidity is checked as it is written rather than only at push time. The hooks live in `.claude/hooks/` and call the same `make` targets as CI.
+`.claude/settings.json` wires the gate into Claude Code sessions, so Solidity is checked as it is written rather than only at push time. In practice:
 
-| Event | Script | Behaviour |
-|---|---|---|
-| `UserPromptSubmit` | `wall_turn_start.py` | Hashes every file that defines the gate, so the `Stop` hook can distinguish what this turn changed from what was already uncommitted when it began. |
-| `PreToolUse` on `Write`/`Edit` | `wall_guard.py` | Refuses writes to the gate itself — `aderyn.triage`, `slither.db.json`, `wall.mk`, `Makefile`, `script/*.py`, `.githooks/`, `.github/workflows/`, `.claude/hooks/*.py`. Three files hold the gate next to routine settings and so are checked by the part of them that *is* the gate, not by path: `foundry.toml` by whether an edit names a gate key, and `.claude/settings.json` and `.claude/settings.local.json` by whether it changes their `hooks` or `env` block. Reading any of them is unaffected. |
-| `PostToolUse` on `Write`/`Edit`/`Bash` | `wall_post_edit.py` | For `.sol` files: applies `forge fmt`, then `forge build`. A compile error is returned to the model in-turn. `Write` and `Edit` name their file; for `Bash` the hook diffs a snapshot of every `.sol` file's mtime and size, so a contract written with a heredoc, an in-place stream edit or a script is caught too. The snapshot lives in `.git/`. |
-| `Stop` | `wall_stop.py` | Compares the gate against the `UserPromptSubmit` baseline and blocks if this turn moved it, whatever route the write took. Then, if any `.sol` differs in the working tree, runs `make verify`. A red gate prevents the turn ending. |
+- **Editing a `.sol` file formats and compiles it in-turn**, whatever route the write took — `Write`, `Edit`, a heredoc, a stream edit or a script. A compile error comes straight back.
+- **The gate itself cannot be written.** `aderyn.triage`, `slither.db.json`, `wall.mk`, `Makefile`, `script/*.py`, `.githooks/`, `.github/workflows/` and `.claude/hooks/*.py` are refused outright. `foundry.toml` and the two `.claude/settings*.json` files are refused only where the edit reaches a gate setting or the `hooks` and `env` blocks, so ordinary work on them is unaffected. Reading any of them is always allowed. Propose the change instead.
+- **A turn cannot end on a red gate**, nor on a gate file this turn changed by any route.
 
-All three exit 0 and stay silent when they do not apply — a turn that touches no Solidity is unaffected. The `Stop` hook also stands down, with a notice, when the toolchain is not installed, and when resuming from its own previous block, so a failure it cannot fix does not trap the session. Neither case weakens CI, which enforces the gate unconditionally.
+`WALL_GUARD=0` in the session environment lifts the guard, and is how to work on the wall itself; leave it unset otherwise. `make test-hooks` exercises the hooks, and is the only thing that reads them.
 
-The two hooks that protect the gate divide the work by what each can know for certain. `wall_guard.py` sees the file a `Write` or an `Edit` is about to change, so it can refuse exactly. It does not inspect shell commands: matching patterns against command text was tried and is the wrong instrument — it refused commands that merely *quoted* a protected path, documentation about the gate among them, while still missing a write buried in a heredoc body. So a write through the shell is caught instead by its effect, when `wall_stop.py` compares the gate against the turn's opening state. The comparison is of file contents, so no route evades it and nothing that only mentions a path trips it. The cost is that the report arrives at the end of the turn rather than at the call. Both hooks share their list of protected files, in `.claude/hooks/wall_protected.py`.
-
-The two mixed-file checks are scoped differently for the same reason. `foundry.toml` is flat, so a gate change cannot happen without the key appearing in the edit, and matching the text is sound. The settings files are nested, where it is not: changing a hook's `matcher` or `command` defangs it without the word `hooks` appearing anywhere in the edit, while every full-file rewrite contains that word whether the hooks changed or not. So those are parsed — the edit is applied in memory and the `hooks` and `env` subtrees compared — which leaves permissions, model and statusline edits as the ordinary work they are.
-
-Two bypasses that edit no file — `git commit --no-verify` and `WALL_REQUIRE_INVARIANT=0` — are not intercepted either, because neither survives contact with the gate: the `Stop` hook runs `make verify` on the tree without the override, and CI runs it again on the pull request.
-
-None of this is a security boundary: `WALL_GUARD=0` in the session environment lifts the guard, and the person at the terminal can always edit the file directly. What it removes is the quiet path. Silencing a lane becomes a deliberate act with a diff attached, rather than something that happens in passing on the way to a green run — and review of that diff is what actually enforces the gate.
-
-`WALL_GUARD=0` is also how to work on the wall itself. Export it for a session whose purpose is changing the hooks or the gate scripts; leave it unset otherwise. Without it an agent cannot edit those files at all, which is the intended default — a session that needs to has to say so first.
-
-`script/test_hooks.py` covers the part of the hooks that makes a decision — which writes `wall_guard.py` refuses, the baseline `wall_turn_start.py` records, and the comparison `wall_stop.py` runs — by executing the installed hook against a throwaway repository built at the layout they expect. It is the only thing that reads them: the `lint` lane is scoped to `src/` and the analysis lanes read Solidity, so a regression here would otherwise be silent, with the gate still reporting green while it stopped being enforced.
-
-Run it with `make test-hooks`. It is outside `make verify` deliberately — the `Stop` hook runs verify on every turn that touches Solidity, and this adds a couple of seconds that say nothing about the contracts — and CI runs it as its own step ahead of the gate, so a broken hook fails in seconds rather than after the full suite. `wall_post_edit.py` is not covered: its decision is only whether a `.sol` file moved, and the part worth testing is `forge fmt` and `forge build`, which ordinary editing exercises continuously.
-
-To opt out locally, disable or override the hooks in `.claude/settings.local.json`, which is untracked. Changes under `.claude/` are executable configuration and warrant the same review as `src/`.
+Why each check is scoped the way it is — and which approach was tried first and abandoned — is documented in `.claude/hooks/wall_protected.py`. Changes under `.claude/` are executable configuration and warrant the same review as `src/`.
 
 ## Commits
 
@@ -152,35 +110,6 @@ The `aderyn` lane gates the one case tooling detects — an address parameter wr
 **Interfaces.** Split every contract into interface and implementation. Custom errors, events, function signatures, enums and structs are declared in the interface file. Interface functions appear in the same order as in the implementation. Functions, events and errors take named parameters and carry full NatSpec.
 
 NatSpec lives in the interface and is never duplicated in the implementation: every implementing function carries `/// @inheritdoc <Interface>` and nothing else. An implementation-only function — a constructor, an `internal` helper — documents itself with `@dev` and `@param` in place.
-
-## Testing layout
-
-- `test/` — unit tests.
-- `test/mocks/` — stand-ins for third-party contracts, shared by every test directory. They
-  contain no test functions and mirror only the surface the adapter calls.
-- `test/invariant/` — property/invariant and fuzz tests. Split out because they are slow, and because they catch accounting and authorization errors that are only wrong relative to the rest of the contract and that static analysis misses.
-**Suite structure.** Tests for a contract live in `test/<ContractName>/`, one file per function
-under test (`Constructor.t.sol`, `Sweep.t.sol`), each inheriting `<ContractName>Base.sol` in the
-same directory. The base holds the fixture — constants, deployed contracts, `setUp` — and no
-test functions, hence no `.t.sol` suffix. `setUp` is `virtual`, and every override calls
-`super.setUp()` first. Invariant suites for the same contract inherit the same base. A contract
-whose tests still read in one sitting stays in a single `test/<ContractName>.t.sol`.
-
-- `test/fork/` — mainnet fork tests. Not part of `verify`; run via `make fork` with `ETH_RPC_URL` set. Pin the block in `setUp()` — forking `latest` makes runs non-reproducible.
-
-**Test naming.** Enforced by `script/gate_tests.py`. Every segment is PascalCase:
-
-| Form | For |
-|---|---|
-| `test_Subject` | a behaviour that should succeed |
-| `test_Subject_Detail` | one aspect of that behaviour |
-| `test_RevertIf_Subject_Reason` | a behaviour that should revert |
-| `testFuzz_Subject`, `testFuzz_RevertIf_Subject_Reason` | fuzzed variants |
-| `invariant_Property` | invariant and property tests |
-
-`Subject` is the function under test — `test_SetDefaultPriceFeedStalenessThreshold`, `test_RevertIf_SetDefaultPriceFeedStalenessThreshold_ZeroThreshold`. It stays in the name even when the file and contract already identify the function.
-
-The reason segment is required on a reverting test: it is what separates one revert path from another, and a test that reverts for the wrong reason still passes. `test_RevertIf_Subject` alone is rejected for that reason. `testFail_` is rejected outright — it passes on *any* revert, including one from an unrelated cause.
 
 ## Toolchain
 
