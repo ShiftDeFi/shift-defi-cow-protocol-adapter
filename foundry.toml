@@ -66,7 +66,7 @@ fail_on_revert = false
 # via `make fork`, which keeps `make verify` hermetic.
 #
 # Pin the block number in setUp() —
-# `vm.createSelectFork(vm.rpcUrl("mainnet"), <block>)`. Forking `latest` makes
+# `vm.createSelectFork(vm.rpcUrl("ethereum"), <block>)`. Forking `latest` makes
 # runs non-reproducible.
 # ---------------------------------------------------------------------------
 [rpc_endpoints]
