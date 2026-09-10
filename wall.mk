@@ -71,7 +71,13 @@ slither:
 	@# freshly-failing tree. The exit code stays correct, but anything reading the
 	@# JSON would see the previous run. Clear it first.
 	rm -f slither.out.json
-	slither . $(SLITHER_ARGS) --json slither.out.json
+	@slither . $(SLITHER_ARGS) --json slither.out.json || { \
+	  echo "WALL: slither failed — a finding at medium severity or above, or"; \
+	  echo "      the compilation above. For a finding: fix the code, or"; \
+	  echo "      acknowledge it with \`make triage\` after review. The"; \
+	  echo "      wall-triage skill covers deciding between the two."; \
+	  exit 1; \
+	}
 
 ## aderyn : second static analysis engine, for uncorrelated blind spots.
 ##          Structured report plus a per-finding triage gate on high severity,
@@ -92,12 +98,16 @@ triage:
 ## retriage : re-anchor accepted aderyn keys whose finding only moved. A key
 ##            is keyed by line, so inserting a line above a reviewed finding
 ##            renumbers it; this pairs the stale key with the current finding
-##            when the anchored source text is identical. It never accepts a
-##            new finding and never removes a key — both stay human decisions.
-##            Pass --check to report without writing.
+##            carrying the same anchor — the digest of the source line recorded
+##            in the key itself, which holds across a chain of uncommitted
+##            edits. It never accepts a new finding and never removes a key —
+##            both stay human decisions. To report without writing, run
+##            `make retriage RETRIAGE_ARGS=--check`; a bare --check on the make
+##            command line is swallowed as an abbreviation of make's own
+##            --check-symlink-times and never reaches the script.
 retriage:
 	aderyn . --src $(SRC_DIR) --output aderyn.out.json
-	python3 $(WALL_DIR)script/retriage_aderyn.py aderyn.out.json
+	python3 $(WALL_DIR)script/retriage_aderyn.py aderyn.out.json $(RETRIAGE_ARGS)
 
 ## help : list available targets.
 help:

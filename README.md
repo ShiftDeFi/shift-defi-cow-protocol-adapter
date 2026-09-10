@@ -75,15 +75,17 @@ Both analysis lanes gate on findings and record accepted ones as reviewed state
 that is committed alongside the code:
 
 - **Slither** — `make triage` writes acknowledgements to `slither.db.json`.
-- **Aderyn** — acknowledged findings are keyed `detector|path|line` in
-  `aderyn.triage`. A new instance of an already-accepted detector is a new key,
-  and still fails.
+- **Aderyn** — acknowledged findings are keyed `detector|path|line|anchor` in
+  `aderyn.triage`, where the anchor is a digest of the source line the finding
+  sits on. A new instance of an already-accepted detector is a new key, and
+  still fails.
 
-Because an Aderyn key is anchored by line, inserting a line above a reviewed
-finding renumbers it, and the lane fails on something that is not a new finding
-at all. `make retriage` re-anchors those: it pairs a stale key with a current
-finding only where the anchored source text is unchanged, and it never accepts a
-new finding nor removes an existing one.
+Because the key carries a line number, inserting a line above a reviewed finding
+renumbers it, and the lane fails on something that is not a new finding at all.
+`make retriage` re-anchors those: it pairs a stale key with the current finding
+carrying the same anchor, and it never accepts a new finding nor removes an
+existing one. Pairing on the recorded digest rather than on a baseline read from
+HEAD is what makes it work more than once between commits.
 
 Adding a triage entry is a human review decision and requires reasoning recorded
 alongside it.
