@@ -17,21 +17,24 @@ contract CowProtocolAdapterSweepTest is CowProtocolAdapterBase {
         assertEq(token.balanceOf(OWNER), OWNER_BALANCE + 100e18);
     }
 
-    /// @dev Sell tokens behind a pending order stay put; only what exceeds them is returned.
-    function test_Sweep_RetainsBalanceCommittedToPendingOrders() public {
+    /// @dev A pending order's sell tokens are held by its lane, so a sweep cannot reach them.
+    function test_Sweep_LeavesPendingOrderFundsOnTheLane() public {
+        ICowProtocolAdapter.OrderParams memory params = _sellOrder();
+
         vm.prank(OWNER);
-        adapter.placeOrder(_sellOrder());
+        adapter.placeOrder(params);
 
         token.mint(address(adapter), 7e18);
 
         vm.prank(OWNER);
         adapter.sweep(address(token));
 
-        assertEq(token.balanceOf(address(adapter)), SELL_AMOUNT);
-        assertEq(adapter.committedAmount(address(token)), SELL_AMOUNT);
+        assertEq(token.balanceOf(address(adapter)), 0);
+        assertEq(token.balanceOf(_laneOf(params)), SELL_AMOUNT);
+        assertEq(_committedAmount(address(token)), SELL_AMOUNT);
     }
 
-    function test_Sweep_EmitsTokensSweptForTheUncommittedAmount() public {
+    function test_Sweep_EmitsTokensSweptWhileAnOrderIsPending() public {
         vm.prank(OWNER);
         adapter.placeOrder(_sellOrder());
 
@@ -74,30 +77,14 @@ contract CowProtocolAdapterSweepTest is CowProtocolAdapterBase {
         adapter.sweep(address(token));
     }
 
-    /// @dev The whole balance is committed, so the order has to be cancelled before these funds
-    ///      can be returned. Sweeping is not a way around a pending order.
-    function test_RevertIf_Sweep_NoUncommittedBalance() public {
+    /// @dev Placing an order moves its sell tokens straight to the lane, so the adapter is left
+    ///      holding nothing.
+    function test_RevertIf_Sweep_NothingToSweep_OrderPending() public {
         vm.startPrank(OWNER);
         adapter.placeOrder(_sellOrder());
 
-        vm.expectRevert(
-            abi.encodeWithSelector(ICowProtocolAdapter.NoUncommittedBalance.selector, SELL_AMOUNT, SELL_AMOUNT)
-        );
+        vm.expectRevert(ICowProtocolAdapter.NothingToSweep.selector);
         adapter.sweep(address(token));
         vm.stopPrank();
-    }
-
-    /// @dev A settlement collecting an order's sell tokens leaves the balance below what is
-    ///      still recorded as committed. That must not underflow into a sweep of the remainder.
-    function test_RevertIf_Sweep_BalanceBelowCommitted() public {
-        vm.prank(OWNER);
-        adapter.placeOrder(_sellOrder());
-
-        vm.prank(address(adapter));
-        token.transfer(VAULT_RELAYER, SELL_AMOUNT - 1e18);
-
-        vm.prank(OWNER);
-        vm.expectRevert(abi.encodeWithSelector(ICowProtocolAdapter.NoUncommittedBalance.selector, 1e18, SELL_AMOUNT));
-        adapter.sweep(address(token));
     }
 }

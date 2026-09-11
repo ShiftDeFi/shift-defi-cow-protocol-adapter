@@ -61,8 +61,7 @@ contract GPv2OrderTest is Test {
         );
     }
 
-    /// @dev A field left out of the encoding would let two different orders share a digest,
-    ///      so every one of the twelve must move the result.
+    /// @dev Every one of the twelve fields must move the result.
     function test_Hash_DependsOnEveryField() public pure {
         bytes32 base = GPv2Order.hash(_order(), DOMAIN_SEPARATOR);
 
@@ -115,8 +114,7 @@ contract GPv2OrderTest is Test {
         assertNotEq(GPv2Order.hash(mutated, DOMAIN_SEPARATOR), base);
     }
 
-    /// @dev The domain separator is what binds a signature to one settlement contract and
-    ///      chain; an order replayed against another must not produce the same digest.
+    /// @dev The domain separator binds a signature to one settlement contract and chain.
     function testFuzz_Hash_DependsOnDomainSeparator(bytes32 otherDomainSeparator) public pure {
         vm.assume(otherDomainSeparator != DOMAIN_SEPARATOR);
 
