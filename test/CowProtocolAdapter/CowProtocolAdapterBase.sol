@@ -77,7 +77,7 @@ abstract contract CowProtocolAdapterBase is Test {
     /// @notice The order's EIP-712 digest.
     /// @dev Derived independently of the adapter, so a change to the fields it fixes shows up
     ///      here as a mismatch.
-    function _digestOf(ICowProtocolAdapter.OrderParams memory params) internal view returns (bytes32) {
+    function _digestOf(ICowProtocolAdapter.OrderParams memory params) internal pure returns (bytes32) {
         GPv2Order.Data memory order = GPv2Order.Data({
             sellToken: params.sellToken,
             buyToken: params.buyToken,
