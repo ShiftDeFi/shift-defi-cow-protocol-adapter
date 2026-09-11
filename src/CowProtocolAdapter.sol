@@ -32,8 +32,7 @@ contract CowProtocolAdapter is ICowProtocolAdapter, OwnerImmutable, ReentrancyGu
     EnumerableSet.Bytes32Set internal _pendingDigests;
 
     /// @dev How many lanes a sell token has, and the width of the occupancy field in
-    ///      {_laneOccupancy}: bit `i` stands for lane `i`, so the field holds exactly this many
-    ///      lanes and the highest index is one below it.
+    ///      {_laneOccupancy}: bit `i` stands for lane `i`.
     uint256 internal constant LANE_COUNT = 256;
 
     IGPv2Settlement internal immutable SETTLEMENT;
@@ -78,8 +77,6 @@ contract CowProtocolAdapter is ICowProtocolAdapter, OwnerImmutable, ReentrancyGu
             sellAmount: params.sellAmount,
             buyAmount: params.buyAmount
         });
-        // Redundant against the status check above, and kept because it is what makes the
-        // pending set and the record's status two views of one fact rather than two facts.
         require(_pendingDigests.add(orderDigest), OrderDigestUsed(orderDigest));
 
         uid = GPv2Order.packOrderUidParams(orderDigest, lane, params.validTo);
@@ -142,8 +139,6 @@ contract CowProtocolAdapter is ICowProtocolAdapter, OwnerImmutable, ReentrancyGu
 
         address lane = _laneAt(record.lane);
 
-        // Unconditional, and idempotent where settlement already holds the marker: the point is
-        // that no trade against this order can settle after the sell tokens have gone home.
         ICowOrderLane(lane).invalidateOrder(GPv2Order.packOrderUidParams(orderDigest, lane, record.validTo));
         ICowOrderLane(lane).approveRelayer(record.sellToken, 0);
         uint256 returned = ICowOrderLane(lane).drain(record.sellToken);
@@ -260,14 +255,9 @@ contract CowProtocolAdapter is ICowProtocolAdapter, OwnerImmutable, ReentrancyGu
         return DOMAIN_SEPARATOR;
     }
 
-    /// @dev Records a filled order as resolved: releases its commitment, frees its lane and
-    ///      sends whatever the lane still holds of the sell token to the owner. The caller has
-    ///      established the verdict, so this writes rather than judges.
-    ///
-    ///      A filled order's whole sell amount was collected by the settlement that filled it,
-    ///      so what the drain finds is anything delivered above it at placement, plus anything
-    ///      that arrived unsolicited. Both are the owner's. The lane is left approving nothing,
-    ///      which is the state the next order to take it expects.
+    /// @dev Records a filled order as resolved: releases its commitment, frees its lane,
+    ///      clears the lane's relayer allowance and drains it to the owner. The caller has
+    ///      established the verdict.
     /// @param orderDigest The order's EIP-712 digest.
     /// @param record The order's record, which must be pending and established as filled.
     /// @param filled The sell amount settlement records the order as filled for.
@@ -284,10 +274,8 @@ contract CowProtocolAdapter is ICowProtocolAdapter, OwnerImmutable, ReentrancyGu
     }
 
     /// @dev Marks a lane as carrying no order on `sellToken`. Never lowers {deployedLaneCount}
-    ///      and never destroys the lane: a freed lane is handed to the next order that needs
-    ///      one, which is what keeps the number of lanes at peak concurrency rather than at the
-    ///      number of orders ever placed. Only this token's bit is cleared — the lane may be
-    ///      carrying orders on other tokens, in rows this one does not touch.
+    ///      and never destroys the lane. Only this token's bit is cleared; the lane may be
+    ///      carrying orders on other tokens.
     /// @param sellToken The token the order sold.
     /// @param index The lane's index.
     function _freeLane(address sellToken, uint256 index) internal {
@@ -295,10 +283,8 @@ contract CowProtocolAdapter is ICowProtocolAdapter, OwnerImmutable, ReentrancyGu
     }
 
     /// @dev Marks the lowest free lane on `sellToken` as carrying an order, deploying it where
-    ///      that index has never been used. Being handed index `i` means bits `0` to `i - 1` are
-    ///      set, so those lanes each carry a pending order and each was therefore deployed:
-    ///      `i` never exceeds the number deployed, the deployed lanes are always the dense
-    ///      prefix `0` to `_deployedLanes - 1`, and the counter can only rise by one.
+    ///      that index has never been used. An index is handed out only when every lower one is
+    ///      occupied, so the deployed lanes stay the dense prefix `0` to `_deployedLanes - 1`.
     /// @param sellToken The token the order sells.
     /// @return lane The lane's address.
     /// @return index The lane's index.
@@ -322,7 +308,7 @@ contract CowProtocolAdapter is ICowProtocolAdapter, OwnerImmutable, ReentrancyGu
 
     /// @dev Pulls sell tokens from the caller to the order's lane and requires the lane's balance
     ///      to grow by at least `amount`, so a token taking a fee on transfer reverts. A larger
-    ///      delivery is accepted and reaches the owner when the order resolves.
+    ///      delivery is accepted.
     /// @param lane The lane that owns the order.
     /// @param token The order's sell token.
     /// @param amount The amount to pull.
@@ -335,15 +321,10 @@ contract CowProtocolAdapter is ICowProtocolAdapter, OwnerImmutable, ReentrancyGu
     }
 
     /// @dev Judges whether a pending order has filled, per {ICowProtocolAdapter.FillVerdict}.
-    ///      Settlement's record decides it wherever that record is conclusive: an amount is a
-    ///      fill of this order alone, since a record is keyed by an identifier no other order
-    ///      shares. Once the order has expired that record may have been cleared for a gas
-    ///      refund, and the lane's relayer allowance decides instead — the adapter set it to
-    ///      this order's sell amount at placement, no other order can spend the row, and nothing
-    ///      but a pull lowers it, so a shortfall is this order's own fill.
-    ///
-    ///      The two agree wherever both are available, so which one answers is not observable:
-    ///      the allowance arm is reached only for an order whose record reads zero.
+    ///      Settlement's fill record decides it where it is non-zero. Where it reads zero — which
+    ///      includes a record cleared after expiry — the lane's relayer allowance decides
+    ///      instead: it was set to the order's sell amount at placement and only a pull lowers
+    ///      it, so a shortfall is this order's fill.
     /// @param orderDigest The order's EIP-712 digest.
     /// @param record The order's record, which must be pending.
     /// @return verdict What the adapter establishes about the order.
@@ -369,12 +350,9 @@ contract CowProtocolAdapter is ICowProtocolAdapter, OwnerImmutable, ReentrancyGu
         return (FillVerdict.Unfilled, filled);
     }
 
-    /// @dev The occupancy bit standing for a lane index. Exponentiation rather than a shift
-    ///      because it fails closed: `2 ** index` reverts once `index` reaches 256, where
-    ///      `1 << index` evaluates to zero and would turn the caller's `|=` into a no-op,
-    ///      leaving a lane that already carries an order free to be handed a second one.
-    ///      {_lowestFreeLane} cannot return an index above 255, so no caller reaches that
-    ///      boundary.
+    /// @dev The occupancy bit standing for a lane index. Exponentiation rather than a shift so
+    ///      that an index of 256 or above reverts, where `1 << index` would evaluate to zero and
+    ///      make the caller's `|=` a no-op.
     /// @param index The lane's index.
     /// @return The bit for that lane.
     function _laneBit(uint256 index) internal pure returns (uint256) {
@@ -382,9 +360,8 @@ contract CowProtocolAdapter is ICowProtocolAdapter, OwnerImmutable, ReentrancyGu
     }
 
     /// @dev The lowest lane index carrying no pending order on `sellToken`. For an occupancy
-    ///      with its lowest clear bit at `k`, `occupancy + 1` carries bit `k` up and clears
-    ///      everything below it, and `~occupancy` keeps only bits that are clear, so the two
-    ///      agree on bit `k` alone — an exact power of two, which `log2` reads back as `k`.
+    ///      whose lowest clear bit is `k`, `~occupancy & (occupancy + 1)` isolates bit `k`, which
+    ///      `log2` reads back as `k`.
     /// @param sellToken The token the order sells.
     /// @return The lane's index.
     function _lowestFreeLane(address sellToken) internal view returns (uint256) {
@@ -394,11 +371,9 @@ contract CowProtocolAdapter is ICowProtocolAdapter, OwnerImmutable, ReentrancyGu
         return Math.log2(~occupancy & (occupancy + 1));
     }
 
-    /// @dev A lane's address, deployed or not. The adapter is the deployer in the CREATE2
-    ///      derivation, so no other account can occupy the address, and a lane's index is
-    ///      therefore enough to name it. Pure address math over any `index`, so every external
-    ///      entry point bounds its own argument by {LANE_COUNT} first; the internal callers
-    ///      pass an index from {_lowestFreeLane} or a record, both already within it.
+    /// @dev A lane's address, deployed or not, derived by CREATE2 from the adapter and the
+    ///      index. Unbounded over `index`, so every external entry point bounds its own argument
+    ///      by {LANE_COUNT} first.
     /// @param index The lane's index.
     /// @return The lane's address.
     function _laneAt(uint256 index) internal view returns (address) {
@@ -406,9 +381,7 @@ contract CowProtocolAdapter is ICowProtocolAdapter, OwnerImmutable, ReentrancyGu
     }
 
     /// @dev Expands caller-supplied parameters into the full order settlement verifies. The
-    ///      fields absent from {OrderParams} are fixed here: `kind` is sell, `receiver` is the
-    ///      owner, `feeAmount` is zero, `partiallyFillable` is false, and both balance fields
-    ///      are plain ERC-20.
+    ///      fields absent from {OrderParams} are fixed here.
     /// @param params The caller-supplied part of the order.
     /// @return order The order in the form settlement verifies.
     function _buildOrder(OrderParams memory params) internal view returns (GPv2Order.Data memory order) {

@@ -10,17 +10,14 @@ import {ICowProtocolAdapter} from "./interfaces/ICowProtocolAdapter.sol";
 import {IGPv2Settlement} from "./interfaces/IGPv2Settlement.sol";
 
 /// @title CowOrderLane
-/// @notice The identity one of an adapter's orders borrows so that it owns a row of its sell
-///         token's allowance mapping alone.
+/// @notice The address an adapter's order names as its owner, so that the order holds a sell
+///         token allowance row of its own.
 /// @dev Deployed once per adapter as an implementation, then cloned per lane. A clone
-///      `delegatecall`s this code, so the immutables below — baked into this contract's own
-///      bytecode at construction — are what every clone reads, while `address(this)` inside the
-///      call is the clone's address. That is what lets one implementation serve every lane while
-///      each lane remains a distinct order owner.
+///      `delegatecall`s this code, so every clone reads the immutables baked into this
+///      contract's bytecode while `address(this)` is the clone's own address.
 ///
-///      The reentrancy guard's slot belongs to the clone rather than to this contract, and it
-///      reads as unentered at any value but the entered one, so a clone is guarded from its
-///      first call without the constructor a clone never runs.
+///      The reentrancy guard's slot belongs to the clone and reads as unentered at any value but
+///      the entered one, so a clone is guarded from its first call without running a constructor.
 contract CowOrderLane is ICowOrderLane, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
@@ -29,15 +26,13 @@ contract CowOrderLane is ICowOrderLane, ReentrancyGuard {
     IGPv2Settlement internal immutable SETTLEMENT;
     address internal immutable VAULT_RELAYER;
 
-    /// @dev Restricts a function to the adapter. Every function that moves value or grants an
-    ///      allowance carries it, so a lane acts only where its adapter told it to.
+    /// @dev Restricts a function to the adapter.
     modifier onlyAdapter() {
         _checkAdapter();
         _;
     }
 
-    /// @dev Every counterparty is fixed here rather than passed per call, so the lane's callable
-    ///      surface names no address at all.
+    /// @dev Every counterparty is fixed here rather than passed per call.
     /// @param _adapter The adapter the lane obeys.
     /// @param _recipient The only address the lane can send value to, the adapter's owner.
     /// @param _settlement The settlement contract the lane cancels orders at.
