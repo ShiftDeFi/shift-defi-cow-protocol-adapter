@@ -53,27 +53,34 @@ jobs:
 
       # Cached paths: ~/.cache/pip holds slither's wheels, ~/.cyfrin the aderyn
       # binary, ~/.svm the solc version forge downloads. The key carries every
-      # pin, so bumping one rebuilds the cache.
+      # pin, so bumping one rebuilds the cache. The v2 prefix retires caches
+      # written while aderyn was landing outside ~/.cyfrin, which restored an
+      # empty directory and skipped the install.
       - name: Cache pinned toolchain
-        id: toolcache
         uses: actions/cache@v6
         with:
           path: |
             ~/.cache/pip
             ~/.cyfrin
             ~/.svm
-          key: wall-${{ runner.os }}-py3.12-slither${{ env.SLITHER_VERSION }}-aderyn${{ env.ADERYN_VERSION }}-foundry${{ env.FOUNDRY_VERSION }}
+          key: wall-v2-${{ runner.os }}-py3.12-slither${{ env.SLITHER_VERSION }}-aderyn${{ env.ADERYN_VERSION }}-foundry${{ env.FOUNDRY_VERSION }}
 
       - name: Install Slither (pinned)
         run: pip install "slither-analyzer==${SLITHER_VERSION}"
 
+      # ADERYN_INSTALL_DIR is what puts the binary in ~/.cyfrin/bin; left unset
+      # the installer picks $CARGO_HOME/bin, which the cache does not cover and
+      # the PATH step below does not name. The guard is the binary itself rather
+      # than the cache hit, so a cache restored without it reinstalls instead of
+      # failing at the toolchain report.
       - name: Install Aderyn (pinned)
-        if: steps.toolcache.outputs.cache-hit != 'true'
         run: |
-          curl --proto '=https' --tlsv1.2 -LsSf \
-            "https://github.com/cyfrin/aderyn/releases/download/aderyn-v${ADERYN_VERSION}/aderyn-installer.sh" | bash
+          if [ ! -x "$HOME/.cyfrin/bin/aderyn" ]; then
+            export ADERYN_INSTALL_DIR="$HOME/.cyfrin"
+            curl --proto '=https' --tlsv1.2 -LsSf \
+              "https://github.com/cyfrin/aderyn/releases/download/aderyn-v${ADERYN_VERSION}/aderyn-installer.sh" | bash
+          fi
 
-      # Runs on a cache hit too, where the install step above is skipped.
       - name: Add Aderyn to PATH
         run: echo "$HOME/.cyfrin/bin" >> "$GITHUB_PATH"
 
