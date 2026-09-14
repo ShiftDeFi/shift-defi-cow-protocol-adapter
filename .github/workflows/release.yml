@@ -1,0 +1,104 @@
+# Publishes @shift-defi/cow-protocol-adapter on a version tag.
+#
+# The gate is not re-declared here: this workflow calls wall.yml, so the tag is
+# verified by the same definition that gates a pull request. A tag can point at
+# any commit, including one that never reached main, so the gate runs again
+# rather than trusting an earlier green run on the same SHA.
+#
+# Auth is OIDC (npm Trusted Publishing) — no NPM_TOKEN secret. The publisher is
+# configured on npmjs.com against this repository and this workflow file, which
+# means no long-lived credential exists to leak, and the control that matters
+# is who can change this file or push a tag. Both are branch and tag protection
+# settings, not anything this file can enforce.
+#
+# Third-party action pins are commit SHAs, not tags: a tag can be repointed, and
+# this is the one job that holds a publish credential. The version in the
+# trailing comment is what the SHA resolved to when it was pinned. The npm pin
+# is here for the same reason — an unpinned `npm@latest` in this job is a
+# package fetched at runtime with a credential in reach. Trusted publishing
+# needs npm 11.5.1 or newer, and npm 12 needs Node 22.22.2 or 24.15.0 and up.
+# The npm pin is reported by `make tools` and listed in the README table, so it
+# is bumped alongside the other toolchain pins.
+
+name: Release
+
+permissions:
+  contents: read
+
+on:
+  push:
+    tags: ["v[0-9]+.[0-9]+.[0-9]+"]
+
+# Releases are not cancelled in flight: a half-run publish is worse than a
+# queued one.
+#
+# The group must not collide with the one wall.yml computes when called from
+# here. Its group is `${{ github.workflow }}-${{ github.ref }}`, and for a
+# called workflow github.workflow is the CALLER's name — "Release". Group names
+# are case-insensitive, so naming this group "release-<ref>" would put both runs
+# in one group, where the gate's cancel-in-progress would cancel the release
+# that started it.
+concurrency:
+  group: npm-publish-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  NPM_VERSION: 12.0.2
+
+jobs:
+  gate:
+    uses: ./.github/workflows/wall.yml
+
+  publish:
+    name: Publish to npm
+    needs: gate
+    runs-on: ubuntu-24.04
+    # Set required reviewers on this environment in repository settings. Named
+    # here but left unconfigured, it is a label and gates nothing; configured,
+    # it is the one human approval between a pushed tag and a published
+    # version, and it sees the gate result and the tarball manifest below.
+    environment: npm-publish
+    permissions:
+      contents: write   # create the GitHub Release
+      id-token: write   # OIDC for trusted publishing + provenance
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          submodules: false   # the tarball is src/**/*.sol; lib/ is not packed
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "24"
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Pin npm
+        run: npm install -g "npm@${NPM_VERSION}"
+
+      # npm versions are immutable — a tag that disagrees with the manifest
+      # publishes the wrong number and cannot be taken back.
+      - name: Check tag matches manifest
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          manifest="$(node -p "require('./package.json').version")"
+          if [ "$tag" != "$manifest" ]; then
+            echo "tag $tag does not match package.json $manifest"
+            exit 1
+          fi
+
+      # An auditable record in the run log of exactly what shipped.
+      - name: Tarball contents
+        run: npm pack --dry-run
+
+      # --ignore-scripts skips prepublishOnly: the gate already ran as the
+      # `gate` job, and this runner has no Foundry, Slither or Aderyn. It also
+      # means no package lifecycle script executes in the job holding the
+      # publish credential. prepublishOnly stays as the guard for a publish run
+      # by hand.
+      - name: Publish
+        run: npm publish --provenance --ignore-scripts
+
+      - name: GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" --generate-notes --verify-tag
