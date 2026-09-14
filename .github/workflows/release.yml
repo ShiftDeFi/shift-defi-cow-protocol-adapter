@@ -6,10 +6,12 @@
 # rather than trusting an earlier green run on the same SHA.
 #
 # Auth is OIDC (npm Trusted Publishing) — no NPM_TOKEN secret. The publisher is
-# configured on npmjs.com against this repository and this workflow file, which
-# means no long-lived credential exists to leak, and the control that matters
-# is who can change this file or push a tag. Both are branch and tag protection
-# settings, not anything this file can enforce.
+# configured on npmjs.com against this repository and this workflow file, and
+# is scoped stage-only: this workflow can submit a version for review and
+# cannot make one live. No long-lived credential exists to leak, so the control
+# that matters upstream is who can change this file or push a tag — branch and
+# tag protection settings, not anything this file can enforce — and downstream
+# it is the 2FA approval that promotes a staged version.
 #
 # Third-party action pins are commit SHAs, not tags: a tag can be repointed, and
 # this is the one job that holds a publish credential. The version in the
@@ -90,15 +92,28 @@ jobs:
       - name: Tarball contents
         run: npm pack --dry-run
 
-      # --ignore-scripts skips prepublishOnly: the gate already ran as the
-      # `gate` job, and this runner has no Foundry, Slither or Aderyn. It also
-      # means no package lifecycle script executes in the job holding the
-      # publish credential. prepublishOnly stays as the guard for a publish run
-      # by hand.
-      - name: Publish
-        run: npm publish --provenance --ignore-scripts
+      # `npm stage publish`, not `npm publish`: the trusted publisher is
+      # configured stage-only, so this job cannot make a version live. It
+      # submits one for review, and promoting it to the registry needs 2FA from
+      # a maintainer. A compromised workflow or a rogue tag can therefore
+      # produce a staged artefact that nobody can install, which is the point.
+      #
+      # ignore-scripts is set as config rather than as --ignore-scripts,
+      # which `npm stage publish` does not document as a flag. It skips
+      # prepublishOnly — the gate already ran as the `gate` job, and this runner
+      # has no Foundry, Slither or Aderyn — and keeps any package lifecycle
+      # script from executing in the job that holds the credential.
+      # prepublishOnly stays as the guard for a publish run by hand.
+      - name: Stage publish
+        env:
+          NPM_CONFIG_IGNORE_SCRIPTS: "true"
+        run: npm stage publish --provenance
 
-      - name: GitHub Release
+      # Drafted, not published: the npm version is staged at this point and
+      # becomes installable only when a maintainer approves it. Publish the
+      # draft when approving the staged package, so the two stay in step — and
+      # if the staged package is rejected instead, delete the draft.
+      - name: GitHub Release (draft)
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" --generate-notes --verify-tag
+        run: gh release create "$GITHUB_REF_NAME" --draft --generate-notes --verify-tag
