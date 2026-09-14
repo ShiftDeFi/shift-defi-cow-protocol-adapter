@@ -67,6 +67,7 @@ def main(argv: list[str]) -> int:
             "Fix the code, or configure [lint] exclude_lints / "
             "mixed_case_exceptions in foundry.toml after review."
         )
+        print("The wall-triage skill covers deciding between the two.")
         return 1
     return 0
 

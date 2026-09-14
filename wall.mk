@@ -16,12 +16,13 @@ WALL_DIR := $(dir $(WALL_MK))
 
 SRC_DIR       ?= src
 INVARIANT_DIR ?= test/invariant
+FORK_DIR      ?= test/fork
 
 # --fail-medium => non-zero exit on any finding >= medium severity. Findings
 # acknowledged into slither.db.json (via `make triage`) are suppressed.
 SLITHER_ARGS := --config-file $(WALL_DIR)slither.config.json --fail-medium
 
-.PHONY: verify fmt build lint test slither aderyn invariant triage help clean
+.PHONY: verify fmt build lint test slither aderyn invariant triage retriage help clean
 
 ## verify : the full gate. Prerequisites run left-to-right, cheapest first.
 verify: fmt build lint test slither aderyn invariant
@@ -54,9 +55,13 @@ lint:
 ##        `forge test` exits 0 when it finds no tests, so the guard runs first
 ##        and rejects a tree that has contracts but no coverage. The same guard
 ##        checks test naming, which no Foundry tool covers.
+##
+##        Fork tests are excluded too: they need ETH_RPC_URL and a network
+##        round trip, which would make the gate neither hermetic nor offline.
+##        They run via `make fork`.
 test:
 	python3 $(WALL_DIR)script/gate_tests.py
-	forge test --no-match-path "$(INVARIANT_DIR)/*"
+	forge test --no-match-path "{$(INVARIANT_DIR),$(FORK_DIR)}/*"
 
 ## slither : static analysis. Writes a structured report and exits non-zero on
 ##           any finding at or above the threshold.
@@ -66,7 +71,13 @@ slither:
 	@# freshly-failing tree. The exit code stays correct, but anything reading the
 	@# JSON would see the previous run. Clear it first.
 	rm -f slither.out.json
-	slither . $(SLITHER_ARGS) --json slither.out.json
+	@slither . $(SLITHER_ARGS) --json slither.out.json || { \
+	  echo "WALL: slither failed — a finding at medium severity or above, or"; \
+	  echo "      the compilation above. For a finding: fix the code, or"; \
+	  echo "      acknowledge it with \`make triage\` after review. The"; \
+	  echo "      wall-triage skill covers deciding between the two."; \
+	  exit 1; \
+	}
 
 ## aderyn : second static analysis engine, for uncorrelated blind spots.
 ##          Structured report plus a per-finding triage gate on high severity,
@@ -84,10 +95,24 @@ invariant:
 triage:
 	slither . --config-file $(WALL_DIR)slither.config.json --triage-mode
 
+## retriage : re-anchor accepted aderyn keys whose finding only moved. A key
+##            is keyed by line, so inserting a line above a reviewed finding
+##            renumbers it; this pairs the stale key with the current finding
+##            carrying the same anchor — the digest of the source line recorded
+##            in the key itself, which holds across a chain of uncommitted
+##            edits. It never accepts a new finding and never removes a key —
+##            both stay human decisions. To report without writing, run
+##            `make retriage RETRIAGE_ARGS=--check`; a bare --check on the make
+##            command line is swallowed as an abbreviation of make's own
+##            --check-symlink-times and never reaches the script.
+retriage:
+	aderyn . --src $(SRC_DIR) --output aderyn.out.json
+	python3 $(WALL_DIR)script/retriage_aderyn.py aderyn.out.json $(RETRIAGE_ARGS)
+
 ## help : list available targets.
 help:
 	@grep -hE '^##' $(MAKEFILE_LIST) | sed -E 's/^## ?//'
 
 clean:
 	forge clean
-	rm -f slither.out.json aderyn.out.json
+	rm -f slither.out.json aderyn.out.json lcov.info

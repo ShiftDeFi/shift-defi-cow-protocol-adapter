@@ -7,6 +7,10 @@ out = "out"
 libs = ["lib"]
 solc_version = "0.8.28" # Pinned; the gate must not float across solc versions.
 evm_version = "prague"
+# Remappings come from remappings.txt only. With auto-detection on, forge adds
+# every library under lib/ to whatever the file declares, so the file would not
+# be the full picture. Slither and Aderyn read the same resolved set.
+auto_detect_remappings = false
 optimizer = true
 optimizer_runs = 200
 
@@ -28,7 +32,9 @@ sort_imports = false                       # plain alphabetical sorting would fl
 # src/. Linting during build re-reported test and dependency code that the lane
 # ignores, so two sources disagreed.
 lint_on_build = false
-# exclude_lints = []        # silence a rule outright, after review
+# asm-keccak256 is a gas note, not a correctness finding, and fires on every
+# `keccak256(abi.encode(...))` — the form EIP-712 struct hashing is written in.
+exclude_lints = ["asm-keccak256"]
 # mixed_case_exceptions = ["ERC", "URI"]
 
 [profile.default.fuzz]
@@ -60,7 +66,7 @@ fail_on_revert = false
 # via `make fork`, which keeps `make verify` hermetic.
 #
 # Pin the block number in setUp() —
-# `vm.createSelectFork(vm.rpcUrl("mainnet"), <block>)`. Forking `latest` makes
+# `vm.createSelectFork(vm.rpcUrl("ethereum"), <block>)`. Forking `latest` makes
 # runs non-reproducible.
 # ---------------------------------------------------------------------------
 [rpc_endpoints]
