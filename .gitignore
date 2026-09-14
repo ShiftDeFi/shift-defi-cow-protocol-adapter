@@ -35,3 +35,17 @@ lcov.info
 # macOS system files
 .DS_Store
 **/.DS_Store
+
+# Local review artefacts. Each audit run writes its own .audit-<suffix>/ of
+# per-agent bundles, and x-ray/ and the design notes are working material for
+# reviewing the contracts rather than part of them. None of it is published
+# either — package.json lists src/**/*.sol and nothing else.
+.audit-*/
+*-audit-report-*.md
+x-ray/
+design.md
+design-properties.md
+
+# npm
+node_modules/
+*.tgz

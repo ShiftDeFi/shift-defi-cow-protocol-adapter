@@ -12,6 +12,36 @@ One adapter instance is deployed per consuming contract and is owned by it.
 Instances are independent: there is no shared implementation, no factory, and no
 multi-tenant accounting.
 
+## Installation
+
+Published to npm as `@shift-defi/cow-protocol-adapter`. The package carries the
+Solidity sources under `src/` and nothing else, so the consuming project
+compiles them with its own solc settings.
+
+```shell
+npm install @shift-defi/cow-protocol-adapter
+```
+
+Foundry consumers add the remapping explicitly:
+
+```
+@shift-defi/cow-protocol-adapter=node_modules/@shift-defi/cow-protocol-adapter/src
+```
+
+```solidity
+import {CowProtocolAdapter} from "@shift-defi/cow-protocol-adapter/CowProtocolAdapter.sol";
+```
+
+Compile with the optimizer on. Without it `CowProtocolAdapter` fails to
+compile with stack-too-deep.
+
+The contracts import OpenZeppelin v5, declared as a peer dependency. The
+consumer supplies it — from npm, or from a submodule remapped to the same
+`@openzeppelin/contracts/` prefix — so that one copy backs both trees.
+
+Publishing runs `make verify` first, through `prepublishOnly`: the gate decides
+what leaves the repository, not just what merges into it.
+
 ## Requirements
 
 | Tool | Version |
@@ -20,9 +50,12 @@ multi-tenant accounting.
 | [Slither](https://github.com/crytic/slither) | 0.11.6 |
 | [Aderyn](https://github.com/Cyfrin/aderyn) | 0.6.8 |
 | Python | 3.12+ |
+| npm | 12.0.2 |
 
-Versions must match the pins in `.github/workflows/wall.yml`; `make tools`
-reports what is installed locally.
+Versions must match the pins in `.github/workflows/`; `make tools` reports what
+is installed locally. npm is needed only to publish the package — no gate lane
+uses it — and is pinned because trusted publishing requires 11.5.1 or newer and
+the publish job holds a credential, so nothing there is fetched unpinned.
 
 ## Getting started
 
@@ -122,6 +155,7 @@ test/                unit tests
 script/              gate scripts used by the wall
 wall.mk              the verification gate
 foundry.toml         compiler, formatter and profile settings
+package.json         npm manifest: what the published package contains
 .claude/             agent hooks that run the gate during development
 ```
 

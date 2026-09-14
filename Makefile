@@ -47,6 +47,7 @@ tools:
 	@printf 'slither '; slither --version
 	@aderyn --version
 	@python3 --version
+	@printf 'npm '; npm --version
 
 ## fork : mainnet fork tests. Not part of `make verify`; needs ETH_RPC_URL.
 ##        Pin the block in setUp() — forking `latest` makes runs non-reproducible.
