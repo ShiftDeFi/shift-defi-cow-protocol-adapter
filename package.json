@@ -1,6 +1,6 @@
 {
   "name": "@shift-defi/cow-protocol-adapter",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "CoW Protocol adapter smart contracts for Shift DeFi Platform",
   "author": "ShiftDeFi",
   "license": "MIT",
