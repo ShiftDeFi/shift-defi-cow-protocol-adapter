@@ -10,7 +10,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 .claude/hooks/wall_turn_start.py",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/wall_turn_start.py",
             "timeout": 15
           }
         ]
@@ -22,7 +22,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 .claude/hooks/wall_guard.py",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/wall_guard.py",
             "timeout": 15,
             "statusMessage": "Wall: guarding the gate"
           }
@@ -35,7 +35,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 .claude/hooks/wall_post_edit.py",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/wall_post_edit.py",
             "timeout": 120,
             "statusMessage": "Wall: compiling"
           }
@@ -47,7 +47,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 .claude/hooks/wall_stop.py",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/wall_stop.py",
             "timeout": 900,
             "statusMessage": "Wall: make verify"
           }

@@ -20,6 +20,20 @@ Unit and invariant tests are both required; `WALL_REQUIRE_INVARIANT=0` stages ad
 
 `WALL_GUARD=0` in the session environment lifts the guard, and is how to work on the wall itself; leave it unset otherwise. Changes under `.claude/` are executable configuration and warrant the same review as `src/`.
 
+## Shell output
+
+Shell output is the largest consumer of an agent's context window, and read-only
+exploration is half of it.
+
+Delegate to a subagent when exploring will take five or more read-only commands,
+or when a single command dumps more than ten thousand characters, and only the
+answer is needed rather than the source itself. Never delegate reading a file
+that is about to be edited — an edit needs the exact text, and a subagent returns
+excerpts and conclusions.
+
+Cap output everywhere else. Pipe through `head`, count with `wc -l` before
+printing a file, and use `grep -c` before `grep -n`.
+
 ## Commits
 
 **Never add a `Co-Authored-By` trailer, and never attribute a commit to the tooling used to write it.** This applies to every commit without exception, including ones authored entirely by an agent. A commit message describes the change; how it was produced is not part of the record.
