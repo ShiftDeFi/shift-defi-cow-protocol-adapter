@@ -111,8 +111,8 @@ contract OrderLifecycleHandler is Test {
         sellToken.approve(address(ADAPTER), sellAmount);
 
         vm.prank(OWNER);
-        try ADAPTER.placeOrder(_params(sellToken, sellAmount, buyAmount)) returns (bytes memory uid) {
-            digests.push(_digestOf(uid));
+        try ADAPTER.placeOrder(_params(sellToken, sellAmount, buyAmount)) returns (bytes32 orderDigest) {
+            digests.push(orderDigest);
             ++pending;
             committed[address(sellToken)] += sellAmount;
         } catch {}
@@ -298,17 +298,6 @@ contract OrderLifecycleHandler is Test {
         returns (bytes memory)
     {
         return GPv2Order.packOrderUidParams(orderDigest, ADAPTER.laneAt(record.lane), record.validTo);
-    }
-
-    /// @dev The digest is the identifier's first 32 bytes.
-    function _digestOf(bytes memory uid) internal pure returns (bytes32) {
-        bytes32 orderDigest;
-
-        assembly ("memory-safe") {
-            orderDigest := mload(add(uid, 32))
-        }
-
-        return orderDigest;
     }
 
     function _params(ERC20Mock sellToken, uint256 sellAmount, uint256 buyAmount)

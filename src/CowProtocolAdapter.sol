@@ -58,7 +58,7 @@ contract CowProtocolAdapter is ICowProtocolAdapter, OwnerImmutable, ReentrancyGu
     }
 
     /// @inheritdoc ICowProtocolAdapter
-    function placeOrder(OrderParams calldata params) external onlyOwner nonReentrant returns (bytes memory) {
+    function placeOrder(OrderParams calldata params) external onlyOwner nonReentrant returns (bytes32) {
         _validateOrderParams(params);
         require(params.validTo > block.timestamp, ValidToInPast(params.validTo, block.timestamp));
 
@@ -94,7 +94,7 @@ contract CowProtocolAdapter is ICowProtocolAdapter, OwnerImmutable, ReentrancyGu
 
         ICowOrderLane(lane).approveRelayer(params.sellToken, params.sellAmount);
 
-        return uid;
+        return orderDigest;
     }
 
     /// @inheritdoc ICowProtocolAdapter
@@ -191,6 +191,14 @@ contract CowProtocolAdapter is ICowProtocolAdapter, OwnerImmutable, ReentrancyGu
 
         GPv2Order.Data memory order = _buildOrder(params);
         return GPv2Order.packOrderUidParams(order.hash(DOMAIN_SEPARATOR), _laneAt(laneIndex), params.validTo);
+    }
+
+    /// @inheritdoc ICowProtocolAdapter
+    function orderUidOf(bytes32 orderDigest) external view returns (bytes memory) {
+        OrderRecord memory record = _orderRecords[orderDigest];
+        require(record.status != OrderStatus.None, OrderUnknown(orderDigest));
+
+        return GPv2Order.packOrderUidParams(orderDigest, _laneAt(record.lane), record.validTo);
     }
 
     /// @inheritdoc ICowProtocolAdapter

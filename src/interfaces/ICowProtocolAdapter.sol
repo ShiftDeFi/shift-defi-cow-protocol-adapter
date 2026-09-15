@@ -197,6 +197,10 @@ interface ICowProtocolAdapter is IOwnerImmutable {
     /// @param pendingOrders How many orders are still pending.
     error OrdersStillPending(uint256 pendingOrders);
 
+    /// @notice Thrown when a call names a digest the adapter holds no order under.
+    /// @param orderDigest The digest supplied.
+    error OrderUnknown(bytes32 orderDigest);
+
     /// @notice Thrown when a call names a digest that carries no pending order.
     /// @dev Covers a digest never placed and one whose order has already resolved or been
     ///      cancelled.
@@ -226,15 +230,17 @@ interface ICowProtocolAdapter is IOwnerImmutable {
     /// @dev The order is assigned the lowest-numbered lane carrying no pending order on
     ///      `params.sellToken`, deploying that lane where its index has never been used. The
     ///      lane, not the adapter, owns the order: it holds the sell tokens, grants the
-    ///      allowance and is the address encoded in the returned identifier.
+    ///      allowance and is the address encoded in the identifier {OrderPlaced} carries.
     ///
     ///      Reverts with {NoFreeLane} where the token has all 256 lanes occupied, and with
     ///      {SellTokenShortfall} where the lane's balance grows by less than `params.sellAmount`.
     ///      Any excess delivered is left on the lane and reaches the owner when the order
     ///      resolves.
     /// @param params The caller-supplied part of the order.
-    /// @return uid The identifier settlement records fills of the order under.
-    function placeOrder(OrderParams calldata params) external returns (bytes memory uid);
+    /// @return orderDigest The order's EIP-712 digest, the key {resolveOrder}, {cancelOrder} and
+    ///         {orderRecord} take it by. The identifier settlement records fills under is carried
+    ///         by {OrderPlaced}.
+    function placeOrder(OrderParams calldata params) external returns (bytes32 orderDigest);
 
     /// @notice Resolves one filled order, releasing its commitment and draining its lane to the
     ///         owner.
@@ -308,6 +314,14 @@ interface ICowProtocolAdapter is IOwnerImmutable {
     /// @param laneIndex The index of the lane owning the order, below the lane count.
     /// @return The order's 56-byte unique identifier.
     function orderUid(OrderParams calldata params, uint256 laneIndex) external view returns (bytes memory);
+
+    /// @notice The unique identifier settlement records fills of a placed order under.
+    /// @dev Packed from the digest and the lane and `validTo` its record carries, so it answers
+    ///      for an order in any state the adapter has recorded, pending or not. Reverts with
+    ///      {OrderUnknown} where no order was ever placed under `orderDigest`.
+    /// @param orderDigest The order's EIP-712 digest, as returned by {placeOrder}.
+    /// @return The order's 56-byte unique identifier.
+    function orderUidOf(bytes32 orderDigest) external view returns (bytes memory);
 
     /// @notice The lane the next order selling a token would be placed on.
     /// @dev The lowest-numbered lane carrying no pending order on `sellToken`. Reverts with
