@@ -55,17 +55,19 @@ contract CowOrderLane is ICowOrderLane, ReentrancyGuard {
     }
 
     /// @inheritdoc ICowOrderLane
-    function drain(address token) external onlyAdapter nonReentrant returns (uint256 amount) {
-        amount = IERC20(token).balanceOf(address(this));
+    function drain(address token) external onlyAdapter nonReentrant returns (uint256) {
+        uint256 amount = IERC20(token).balanceOf(address(this));
 
         if (amount != 0) {
             IERC20(token).safeTransfer(RECIPIENT, amount);
         }
+
+        return amount;
     }
 
     /// @inheritdoc ICowOrderLane
-    function isValidSignature(bytes32 orderDigest, bytes calldata) external view returns (bytes4 magicValue) {
-        magicValue = ICowProtocolAdapter(ADAPTER).isValidSignatureForLane(address(this), orderDigest);
+    function isValidSignature(bytes32 orderDigest, bytes calldata) external view returns (bytes4) {
+        return ICowProtocolAdapter(ADAPTER).isValidSignatureForLane(address(this), orderDigest);
     }
 
     /// @inheritdoc ICowOrderLane

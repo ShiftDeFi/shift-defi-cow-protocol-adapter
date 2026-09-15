@@ -136,13 +136,17 @@ contract CowProtocolAdapterRequireNoPendingOrdersTest is CowProtocolAdapterBase 
     }
 
     /// @dev Places three orders on one token and settles all of them.
-    function _threeFilledOrders() internal returns (ICowProtocolAdapter.OrderParams[3] memory orders) {
+    function _threeFilledOrders() internal returns (ICowProtocolAdapter.OrderParams[3] memory) {
+        ICowProtocolAdapter.OrderParams[3] memory orders;
+
         for (uint256 i; i < orders.length; ++i) {
             orders[i] = _sellOrder();
             orders[i].validTo = VALID_TO + uint32(i);
 
             _placeAndFill(orders[i]);
         }
+
+        return orders;
     }
 
     /// @dev Quantifies how the gate scales with the pending set: a fixed base, plus a marginal
@@ -158,7 +162,7 @@ contract CowProtocolAdapterRequireNoPendingOrdersTest is CowProtocolAdapterBase 
 
     /// @dev Gas the gate burns clearing `orderCount` filled orders, measured from a clean state
     ///      each time so the two measurements are comparable.
-    function _gateCost(uint256 orderCount) internal returns (uint256 used) {
+    function _gateCost(uint256 orderCount) internal returns (uint256) {
         uint256 snapshot = vm.snapshotState();
 
         for (uint256 i; i < orderCount; ++i) {
@@ -172,8 +176,10 @@ contract CowProtocolAdapterRequireNoPendingOrdersTest is CowProtocolAdapterBase 
         vm.prank(OWNER);
         uint256 gasBefore = gasleft();
         adapter.requireNoPendingOrders();
-        used = gasBefore - gasleft();
+        uint256 used = gasBefore - gasleft();
 
         vm.revertToState(snapshot);
+
+        return used;
     }
 }

@@ -540,19 +540,23 @@ contract CowProtocolAdapterPlaceOrderTest is CowProtocolAdapterBase {
         assertLt(deployingCost - reusingCost, 60_000);
     }
 
-    function _fundedFeeToken(uint256 feeBasisPoints) internal returns (ERC20FeeOnTransferMock feeToken) {
-        feeToken = new ERC20FeeOnTransferMock(feeBasisPoints);
+    function _fundedFeeToken(uint256 feeBasisPoints) internal returns (ERC20FeeOnTransferMock) {
+        ERC20FeeOnTransferMock feeToken = new ERC20FeeOnTransferMock(feeBasisPoints);
         feeToken.mint(OWNER, OWNER_BALANCE);
 
         vm.prank(OWNER);
         feeToken.approve(address(adapter), type(uint256).max);
+
+        return feeToken;
     }
 
-    function _fundedHookToken(uint256 feeBasisPoints) internal returns (ERC20HookOnTransferMock hookToken) {
-        hookToken = new ERC20HookOnTransferMock(feeBasisPoints);
+    function _fundedHookToken(uint256 feeBasisPoints) internal returns (ERC20HookOnTransferMock) {
+        ERC20HookOnTransferMock hookToken = new ERC20HookOnTransferMock(feeBasisPoints);
         hookToken.mint(OWNER, OWNER_BALANCE);
 
         vm.prank(OWNER);
         hookToken.approve(address(adapter), type(uint256).max);
+
+        return hookToken;
     }
 }

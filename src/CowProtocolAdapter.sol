@@ -58,7 +58,7 @@ contract CowProtocolAdapter is ICowProtocolAdapter, OwnerImmutable, ReentrancyGu
     }
 
     /// @inheritdoc ICowProtocolAdapter
-    function placeOrder(OrderParams calldata params) external onlyOwner nonReentrant returns (bytes memory uid) {
+    function placeOrder(OrderParams calldata params) external onlyOwner nonReentrant returns (bytes memory) {
         _validateOrderParams(params);
         require(params.validTo > block.timestamp, ValidToInPast(params.validTo, block.timestamp));
 
@@ -79,7 +79,7 @@ contract CowProtocolAdapter is ICowProtocolAdapter, OwnerImmutable, ReentrancyGu
         });
         require(_pendingDigests.add(orderDigest), OrderDigestUsed(orderDigest));
 
-        uid = GPv2Order.packOrderUidParams(orderDigest, lane, params.validTo);
+        bytes memory uid = GPv2Order.packOrderUidParams(orderDigest, lane, params.validTo);
 
         emit OrderPlaced(
             orderDigest,
@@ -93,6 +93,8 @@ contract CowProtocolAdapter is ICowProtocolAdapter, OwnerImmutable, ReentrancyGu
         );
 
         ICowOrderLane(lane).approveRelayer(params.sellToken, params.sellAmount);
+
+        return uid;
     }
 
     /// @inheritdoc ICowProtocolAdapter
@@ -172,12 +174,14 @@ contract CowProtocolAdapter is ICowProtocolAdapter, OwnerImmutable, ReentrancyGu
     }
 
     /// @inheritdoc ICowProtocolAdapter
-    function isValidSignatureForLane(address lane, bytes32 orderDigest) external view returns (bytes4 magicValue) {
+    function isValidSignatureForLane(address lane, bytes32 orderDigest) external view returns (bytes4) {
         OrderRecord storage record = _orderRecords[orderDigest];
 
         if (record.status == OrderStatus.Pending && _laneAt(record.lane) == lane) {
-            magicValue = IERC1271.isValidSignature.selector;
+            return IERC1271.isValidSignature.selector;
         }
+
+        return bytes4(0);
     }
 
     /// @inheritdoc ICowProtocolAdapter
@@ -190,9 +194,10 @@ contract CowProtocolAdapter is ICowProtocolAdapter, OwnerImmutable, ReentrancyGu
     }
 
     /// @inheritdoc ICowProtocolAdapter
-    function nextLane(address sellToken) external view returns (address lane, uint256 index) {
-        index = _lowestFreeLane(sellToken);
-        lane = _laneAt(index);
+    function nextLane(address sellToken) external view returns (address, uint256) {
+        uint256 index = _lowestFreeLane(sellToken);
+
+        return (_laneAt(index), index);
     }
 
     /// @inheritdoc ICowProtocolAdapter
@@ -286,13 +291,15 @@ contract CowProtocolAdapter is ICowProtocolAdapter, OwnerImmutable, ReentrancyGu
     ///      that index has never been used. An index is handed out only when every lower one is
     ///      occupied, so the deployed lanes stay the dense prefix `0` to `_deployedLanes - 1`.
     /// @param sellToken The token the order sells.
-    /// @return lane The lane's address.
-    /// @return index The lane's index.
-    function _occupyLane(address sellToken) internal returns (address lane, uint256 index) {
-        index = _lowestFreeLane(sellToken);
+    /// @return The lane's address.
+    /// @return The lane's index.
+    function _occupyLane(address sellToken) internal returns (address, uint256) {
+        uint256 index = _lowestFreeLane(sellToken);
 
         uint256 deployed = _deployedLanes;
         require(index <= deployed, LaneIndexOutOfRange(index, deployed));
+
+        address lane;
 
         if (index == deployed) {
             _deployedLanes = deployed + 1;
@@ -304,6 +311,8 @@ contract CowProtocolAdapter is ICowProtocolAdapter, OwnerImmutable, ReentrancyGu
         }
 
         _laneOccupancy[sellToken] |= _laneBit(index);
+
+        return (lane, index);
     }
 
     /// @dev Pulls sell tokens from the caller to the order's lane and requires the lane's balance
@@ -327,15 +336,11 @@ contract CowProtocolAdapter is ICowProtocolAdapter, OwnerImmutable, ReentrancyGu
     ///      it, so a shortfall is this order's fill.
     /// @param orderDigest The order's EIP-712 digest.
     /// @param record The order's record, which must be pending.
-    /// @return verdict What the adapter establishes about the order.
-    /// @return filled The sell amount settlement records the order as filled for.
-    function _fillVerdict(bytes32 orderDigest, OrderRecord memory record)
-        internal
-        view
-        returns (FillVerdict verdict, uint256 filled)
-    {
+    /// @return What the adapter establishes about the order.
+    /// @return The sell amount settlement records the order as filled for.
+    function _fillVerdict(bytes32 orderDigest, OrderRecord memory record) internal view returns (FillVerdict, uint256) {
         address lane = _laneAt(record.lane);
-        filled = SETTLEMENT.filledAmount(GPv2Order.packOrderUidParams(orderDigest, lane, record.validTo));
+        uint256 filled = SETTLEMENT.filledAmount(GPv2Order.packOrderUidParams(orderDigest, lane, record.validTo));
 
         if (filled == type(uint256).max) {
             return (FillVerdict.Invalidated, filled);
@@ -383,9 +388,9 @@ contract CowProtocolAdapter is ICowProtocolAdapter, OwnerImmutable, ReentrancyGu
     /// @dev Expands caller-supplied parameters into the full order settlement verifies. The
     ///      fields absent from {OrderParams} are fixed here.
     /// @param params The caller-supplied part of the order.
-    /// @return order The order in the form settlement verifies.
-    function _buildOrder(OrderParams memory params) internal view returns (GPv2Order.Data memory order) {
-        order = GPv2Order.Data({
+    /// @return The order in the form settlement verifies.
+    function _buildOrder(OrderParams memory params) internal view returns (GPv2Order.Data memory) {
+        return GPv2Order.Data({
             sellToken: params.sellToken,
             buyToken: params.buyToken,
             receiver: OWNER,

@@ -98,9 +98,10 @@ abstract contract CowProtocolAdapterBase is Test {
 
     /// @notice The total sell amount of every pending order selling `sellToken`, summed from
     ///         the adapter's own records.
-    function _committedAmount(address sellToken) internal view returns (uint256 total) {
+    function _committedAmount(address sellToken) internal view returns (uint256) {
         bytes32[] memory orderDigests = adapter.pendingOrderDigests();
         uint256 length = orderDigests.length;
+        uint256 total;
 
         for (uint256 i; i < length; ++i) {
             ICowProtocolAdapter.OrderRecord memory record = adapter.orderRecord(orderDigests[i]);
@@ -109,11 +110,13 @@ abstract contract CowProtocolAdapterBase is Test {
                 total += record.sellAmount;
             }
         }
+
+        return total;
     }
 
     /// @notice The standard sell order over the fixture's two tokens.
-    function _sellOrder() internal view returns (ICowProtocolAdapter.OrderParams memory params) {
-        params = ICowProtocolAdapter.OrderParams({
+    function _sellOrder() internal view returns (ICowProtocolAdapter.OrderParams memory) {
+        return ICowProtocolAdapter.OrderParams({
             sellToken: address(token),
             buyToken: address(buyToken),
             sellAmount: SELL_AMOUNT,

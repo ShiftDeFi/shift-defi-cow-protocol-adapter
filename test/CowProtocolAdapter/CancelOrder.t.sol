@@ -199,10 +199,12 @@ contract CowProtocolAdapterCancelOrderTest is CowProtocolAdapterBase {
         vm.stopPrank();
     }
 
-    function _placeOrder() internal returns (ICowProtocolAdapter.OrderParams memory params) {
-        params = _sellOrder();
+    function _placeOrder() internal returns (ICowProtocolAdapter.OrderParams memory) {
+        ICowProtocolAdapter.OrderParams memory params = _sellOrder();
 
         vm.prank(OWNER);
         adapter.placeOrder(params);
+
+        return params;
     }
 }

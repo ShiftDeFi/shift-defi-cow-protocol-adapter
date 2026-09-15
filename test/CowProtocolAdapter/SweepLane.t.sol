@@ -100,13 +100,15 @@ contract CowProtocolAdapterSweepLaneTest is CowProtocolAdapterBase {
     }
 
     /// @dev A lane that exists and carries nothing, which is what a resolved order leaves behind.
-    function _freedLane() internal returns (address lane) {
+    function _freedLane() internal returns (address) {
         ICowProtocolAdapter.OrderParams memory params = _sellOrder();
         _placeAndFill(params);
 
-        lane = _laneOf(params);
+        address lane = _laneOf(params);
 
         vm.prank(OWNER);
         adapter.resolveOrder(_digestOf(params));
+
+        return lane;
     }
 }

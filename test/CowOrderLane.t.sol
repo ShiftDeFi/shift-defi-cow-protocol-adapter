@@ -195,12 +195,12 @@ contract CowOrderLaneTest is CowProtocolAdapterBase {
     }
 
     /// @dev A lane with an order on it.
-    function _placedLane() internal returns (address lane) {
+    function _placedLane() internal returns (address) {
         ICowProtocolAdapter.OrderParams memory params = _sellOrder();
 
         vm.prank(OWNER);
         adapter.placeOrder(params);
 
-        lane = _laneOf(params);
+        return _laneOf(params);
     }
 }

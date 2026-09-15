@@ -85,6 +85,8 @@ are exempt.
 
 **Events.** A function that modifies state emits an event carrying the new values, so a consumer can reconstruct the state change from logs alone. One event may cover several variables written in the same call — the rule is per function, not per variable.
 
+**Returns.** An implementation returns with an explicit `return` statement in its body and declares the return type only (`returns (uint256)`), never a named return variable assigned implicitly. The same holds in tests. An interface declaration, which has no body, keeps its named returns — they are what the `@return` tags pair against.
+
 **Local variables.** When a function needs more than four reference-type (`memory`) locals, group them into a struct named `<FunctionName>LocalVars`, declared in the contract's interface file, containing only that function's variables and not reused elsewhere.
 
 **Function parameters.** When a function takes more than three parameters, consider whether several of them express one domain concept. If so, group them into a struct named `<FunctionName>Params`, or something more specific where it reads better (`SwapParams`, `PermitData`). Pass it as `calldata` for external functions and `memory` for internal ones. Do not create a struct purely to shorten a parameter list.

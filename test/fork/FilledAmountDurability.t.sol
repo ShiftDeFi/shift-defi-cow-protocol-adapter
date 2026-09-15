@@ -116,21 +116,23 @@ contract FilledAmountDurabilityForkTest is Test {
     /// @dev An order carrying a non-zero fill record, as the single-element array
     ///      `freeFilledAmountStorage` takes. The cancellation marker stands in for a fill; the
     ///      clearing path does not distinguish them.
-    /// @return uids The order's unique identifier, as a single-element array.
-    function _invalidatedOrder() internal returns (bytes[] memory uids) {
-        uids = new bytes[](1);
+    /// @return The order's unique identifier, as a single-element array.
+    function _invalidatedOrder() internal returns (bytes[] memory) {
+        bytes[] memory uids = new bytes[](1);
         uids[0] = adapter.orderUid(_orderParams(), 0);
 
         vm.prank(adapter.laneAt(0));
         settlement.invalidateOrder(uids[0]);
 
         assertEq(settlement.filledAmount(uids[0]), type(uint256).max, "record should be non-zero");
+
+        return uids;
     }
 
     /// @dev A well-formed order. Only the identifier derived from it is used.
-    /// @return params The caller-supplied part of the order.
-    function _orderParams() internal view returns (ICowProtocolAdapter.OrderParams memory params) {
-        params = ICowProtocolAdapter.OrderParams({
+    /// @return The caller-supplied part of the order.
+    function _orderParams() internal view returns (ICowProtocolAdapter.OrderParams memory) {
+        return ICowProtocolAdapter.OrderParams({
             sellToken: USDC,
             buyToken: WETH,
             sellAmount: SELL_AMOUNT,
