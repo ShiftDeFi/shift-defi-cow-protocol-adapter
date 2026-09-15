@@ -177,19 +177,21 @@ contract SellTokenFeeForkTest is Test {
     }
 
     /// @dev What USDT charges on a transfer of `amount`, by the deployed contract's own rule.
-    function _feeOn(uint256 amount) internal view returns (uint256 fee) {
-        fee = amount * usdt.basisPointsRate() / 10_000;
+    function _feeOn(uint256 amount) internal view returns (uint256) {
+        uint256 fee = amount * usdt.basisPointsRate() / 10_000;
 
         uint256 cap = usdt.maximumFee();
         if (fee > cap) {
             fee = cap;
         }
+
+        return fee;
     }
 
     /// @dev A well-formed order selling USDT.
-    /// @return params The caller-supplied part of the order.
-    function _orderParams() internal view returns (ICowProtocolAdapter.OrderParams memory params) {
-        params = ICowProtocolAdapter.OrderParams({
+    /// @return The caller-supplied part of the order.
+    function _orderParams() internal view returns (ICowProtocolAdapter.OrderParams memory) {
+        return ICowProtocolAdapter.OrderParams({
             sellToken: USDT,
             buyToken: WETH,
             sellAmount: SELL_AMOUNT,

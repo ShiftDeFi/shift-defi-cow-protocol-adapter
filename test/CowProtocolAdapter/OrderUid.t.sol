@@ -171,8 +171,8 @@ contract CowProtocolAdapterOrderUidTest is CowProtocolAdapterBase {
         adapter.orderUid(params, LANE_COUNT);
     }
 
-    function _params() internal pure returns (ICowProtocolAdapter.OrderParams memory params) {
-        params = ICowProtocolAdapter.OrderParams({
+    function _params() internal pure returns (ICowProtocolAdapter.OrderParams memory) {
+        return ICowProtocolAdapter.OrderParams({
             sellToken: SELL_TOKEN,
             buyToken: BUY_TOKEN,
             sellAmount: 100e18,

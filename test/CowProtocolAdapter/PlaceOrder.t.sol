@@ -25,16 +25,16 @@ contract CowProtocolAdapterPlaceOrderTest is CowProtocolAdapterBase {
         assertEq(token.balanceOf(OWNER), OWNER_BALANCE - SELL_AMOUNT);
     }
 
-    /// @dev The identifier is the one {orderUid} derives from the same parameters.
-    function test_PlaceOrder_ReturnsOrderUid() public {
+    /// @dev The digest is the key the order's record is held under, and the identifier
+    ///      {orderUid} derives from the same parameters packs from it.
+    function test_PlaceOrder_ReturnsOrderDigest() public {
         ICowProtocolAdapter.OrderParams memory params = _sellOrder();
 
         vm.prank(OWNER);
-        bytes memory uid = adapter.placeOrder(params);
+        bytes32 orderDigest = adapter.placeOrder(params);
 
-        assertEq(uid.length, GPv2Order.UID_LENGTH);
-        assertEq(uid, GPv2Order.packOrderUidParams(_digestOf(params), _laneOf(params), VALID_TO));
-        assertEq(uid, adapter.orderUid(params, 0));
+        assertEq(orderDigest, _digestOf(params));
+        assertEq(GPv2Order.packOrderUidParams(orderDigest, _laneOf(params), VALID_TO), adapter.orderUid(params, 0));
     }
 
     function test_PlaceOrder_RecordsOrder() public {
@@ -269,12 +269,12 @@ contract CowProtocolAdapterPlaceOrderTest is CowProtocolAdapterBase {
         params.sellToken = address(surplusToken);
 
         vm.prank(OWNER);
-        bytes memory uid = adapter.placeOrder(params);
+        bytes32 orderDigest = adapter.placeOrder(params);
 
         assertEq(surplusToken.balanceOf(_laneOf(params)), SELL_AMOUNT + SELL_AMOUNT / 100);
         assertEq(_committedAmount(address(surplusToken)), SELL_AMOUNT);
         assertEq(surplusToken.allowance(_laneOf(params), VAULT_RELAYER), SELL_AMOUNT);
-        assertEq(uid, adapter.orderUid(params, 0));
+        assertEq(orderDigest, _digestOf(params));
     }
 
     function testFuzz_PlaceOrder_CommitsExactlyTheOrderAmount(uint256 sellAmount, uint256 buyAmount) public {
@@ -286,9 +286,9 @@ contract CowProtocolAdapterPlaceOrderTest is CowProtocolAdapterBase {
         params.buyAmount = buyAmount;
 
         vm.prank(OWNER);
-        bytes memory uid = adapter.placeOrder(params);
+        bytes32 orderDigest = adapter.placeOrder(params);
 
-        assertEq(uid, adapter.orderUid(params, 0));
+        assertEq(orderDigest, _digestOf(params));
         assertEq(token.balanceOf(_laneOf(params)), sellAmount);
         assertEq(_committedAmount(address(token)), sellAmount);
         assertEq(token.allowance(_laneOf(params), VAULT_RELAYER), sellAmount);
@@ -418,12 +418,12 @@ contract CowProtocolAdapterPlaceOrderTest is CowProtocolAdapterBase {
         params.sellToken = address(hookToken);
 
         vm.prank(OWNER);
-        bytes memory uid = adapter.placeOrder(params);
+        bytes32 orderDigest = adapter.placeOrder(params);
 
         assertEq(hookToken.balanceOf(_laneOf(params)), SELL_AMOUNT);
         assertEq(hookToken.allowance(_laneOf(params), VAULT_RELAYER), SELL_AMOUNT);
         assertEq(_committedAmount(address(hookToken)), SELL_AMOUNT);
-        assertEq(uid, adapter.orderUid(params, 0));
+        assertEq(orderDigest, _digestOf(params));
     }
 
     /// @dev The owner still parts with the whole sell amount; the fee it lost was made up by the
@@ -540,19 +540,23 @@ contract CowProtocolAdapterPlaceOrderTest is CowProtocolAdapterBase {
         assertLt(deployingCost - reusingCost, 60_000);
     }
 
-    function _fundedFeeToken(uint256 feeBasisPoints) internal returns (ERC20FeeOnTransferMock feeToken) {
-        feeToken = new ERC20FeeOnTransferMock(feeBasisPoints);
+    function _fundedFeeToken(uint256 feeBasisPoints) internal returns (ERC20FeeOnTransferMock) {
+        ERC20FeeOnTransferMock feeToken = new ERC20FeeOnTransferMock(feeBasisPoints);
         feeToken.mint(OWNER, OWNER_BALANCE);
 
         vm.prank(OWNER);
         feeToken.approve(address(adapter), type(uint256).max);
+
+        return feeToken;
     }
 
-    function _fundedHookToken(uint256 feeBasisPoints) internal returns (ERC20HookOnTransferMock hookToken) {
-        hookToken = new ERC20HookOnTransferMock(feeBasisPoints);
+    function _fundedHookToken(uint256 feeBasisPoints) internal returns (ERC20HookOnTransferMock) {
+        ERC20HookOnTransferMock hookToken = new ERC20HookOnTransferMock(feeBasisPoints);
         hookToken.mint(OWNER, OWNER_BALANCE);
 
         vm.prank(OWNER);
         hookToken.approve(address(adapter), type(uint256).max);
+
+        return hookToken;
     }
 }

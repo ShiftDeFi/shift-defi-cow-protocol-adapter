@@ -64,7 +64,7 @@ library GPv2Order {
     /// @param domainSeparator The EIP-712 domain separator of the settlement contract the
     ///        order is placed against.
     /// @return orderDigest The order's EIP-712 digest.
-    function hash(Data memory order, bytes32 domainSeparator) internal pure returns (bytes32 orderDigest) {
+    function hash(Data memory order, bytes32 domainSeparator) internal pure returns (bytes32) {
         bytes32 structHash = keccak256(
             abi.encode(
                 TYPE_HASH,
@@ -83,7 +83,7 @@ library GPv2Order {
             )
         );
 
-        orderDigest = keccak256(abi.encodePacked(hex"1901", domainSeparator, structHash));
+        return keccak256(abi.encodePacked(hex"1901", domainSeparator, structHash));
     }
 
     /// @notice Packs the parameters that identify an order into its unique identifier, the
@@ -95,8 +95,8 @@ library GPv2Order {
     function packOrderUidParams(bytes32 orderDigest, address owner, uint32 validTo)
         internal
         pure
-        returns (bytes memory orderUid)
+        returns (bytes memory)
     {
-        orderUid = abi.encodePacked(orderDigest, owner, validTo);
+        return abi.encodePacked(orderDigest, owner, validTo);
     }
 }

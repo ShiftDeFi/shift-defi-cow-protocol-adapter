@@ -111,8 +111,8 @@ contract OrderLifecycleHandler is Test {
         sellToken.approve(address(ADAPTER), sellAmount);
 
         vm.prank(OWNER);
-        try ADAPTER.placeOrder(_params(sellToken, sellAmount, buyAmount)) returns (bytes memory uid) {
-            digests.push(_digestOf(uid));
+        try ADAPTER.placeOrder(_params(sellToken, sellAmount, buyAmount)) returns (bytes32 orderDigest) {
+            digests.push(orderDigest);
             ++pending;
             committed[address(sellToken)] += sellAmount;
         } catch {}
@@ -240,8 +240,8 @@ contract OrderLifecycleHandler is Test {
 
     /// @notice A token's balance across every address it can legitimately be held at.
     /// @dev The relayer stands in for settlement, holding whatever a fill collected.
-    function totalHeld(address token) external view returns (uint256 total) {
-        total = ERC20Mock(token).balanceOf(OWNER) + ERC20Mock(token).balanceOf(address(ADAPTER))
+    function totalHeld(address token) external view returns (uint256) {
+        uint256 total = ERC20Mock(token).balanceOf(OWNER) + ERC20Mock(token).balanceOf(address(ADAPTER))
             + ERC20Mock(token).balanceOf(VAULT_RELAYER);
 
         uint256 lanes = ADAPTER.deployedLaneCount();
@@ -249,6 +249,8 @@ contract OrderLifecycleHandler is Test {
         for (uint256 i; i < lanes; ++i) {
             total += ERC20Mock(token).balanceOf(ADAPTER.laneAt(i));
         }
+
+        return total;
     }
 
     /// @dev Splits the fuzzer's seed across the two sell tokens.
@@ -262,30 +264,32 @@ contract OrderLifecycleHandler is Test {
     }
 
     /// @dev How many lanes the token's occupancy field marks as carrying an order.
-    function _occupiedLaneCount(address token) internal view returns (uint256 count) {
+    function _occupiedLaneCount(address token) internal view returns (uint256) {
         uint256 occupancy = ADAPTER.laneOccupancy(token);
+        uint256 count;
 
         for (uint256 i; i < 256; ++i) {
             if (occupancy & (1 << i) != 0) {
                 ++count;
             }
         }
+
+        return count;
     }
 
     /// @dev One of the digests placed so far, with its current record. Returns a zeroed record
     ///      where nothing has been placed yet.
-    function _pendingOrderAt(uint256 seed)
-        internal
-        view
-        returns (bytes32 orderDigest, ICowProtocolAdapter.OrderRecord memory record)
-    {
+    function _pendingOrderAt(uint256 seed) internal view returns (bytes32, ICowProtocolAdapter.OrderRecord memory) {
+        ICowProtocolAdapter.OrderRecord memory record;
+
         uint256 length = digests.length;
         if (length == 0) {
             return (bytes32(0), record);
         }
 
-        orderDigest = digests[bound(seed, 0, length - 1)];
-        record = ADAPTER.orderRecord(orderDigest);
+        bytes32 orderDigest = digests[bound(seed, 0, length - 1)];
+
+        return (orderDigest, ADAPTER.orderRecord(orderDigest));
     }
 
     function _uidOf(bytes32 orderDigest, ICowProtocolAdapter.OrderRecord memory record)
@@ -296,20 +300,13 @@ contract OrderLifecycleHandler is Test {
         return GPv2Order.packOrderUidParams(orderDigest, ADAPTER.laneAt(record.lane), record.validTo);
     }
 
-    /// @dev The digest is the identifier's first 32 bytes.
-    function _digestOf(bytes memory uid) internal pure returns (bytes32 orderDigest) {
-        assembly ("memory-safe") {
-            orderDigest := mload(add(uid, 32))
-        }
-    }
-
     function _params(ERC20Mock sellToken, uint256 sellAmount, uint256 buyAmount)
         internal
-        returns (ICowProtocolAdapter.OrderParams memory params)
+        returns (ICowProtocolAdapter.OrderParams memory)
     {
         ++nonce;
 
-        params = ICowProtocolAdapter.OrderParams({
+        return ICowProtocolAdapter.OrderParams({
             sellToken: address(sellToken),
             buyToken: BUY_TOKEN,
             sellAmount: sellAmount,

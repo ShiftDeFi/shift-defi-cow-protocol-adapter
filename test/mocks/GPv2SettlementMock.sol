@@ -57,10 +57,9 @@ contract GPv2SettlementMock is IGPv2Settlement {
     }
 
     /// @dev The identifier is `orderDigest ++ owner ++ validTo`, packed.
-    function _extractOrderUidParams(bytes calldata orderUid) internal pure returns (address owner, uint32 validTo) {
+    function _extractOrderUidParams(bytes calldata orderUid) internal pure returns (address, uint32) {
         require(orderUid.length == 56, OrderUidMalformed());
 
-        owner = address(bytes20(orderUid[32:52]));
-        validTo = uint32(bytes4(orderUid[52:56]));
+        return (address(bytes20(orderUid[32:52])), uint32(bytes4(orderUid[52:56])));
     }
 }

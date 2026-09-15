@@ -137,8 +137,8 @@ contract GPv2OrderTest is Test {
         assertEq(uint32(uint256(tail)), validTo);
     }
 
-    function _order() internal pure returns (GPv2Order.Data memory order) {
-        order = GPv2Order.Data({
+    function _order() internal pure returns (GPv2Order.Data memory) {
+        return GPv2Order.Data({
             sellToken: address(0xA11CE),
             buyToken: address(0xB0B),
             receiver: address(0xBEEF),
