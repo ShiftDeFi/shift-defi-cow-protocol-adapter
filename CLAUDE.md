@@ -10,7 +10,7 @@ This repo is public. Keep comments in committed files factual and about what the
 
 `make verify` is the gate, and CI runs the same target. Each lane also runs standalone (`make lint`, `make slither`, …), which is the fast way to iterate on one failure. README.md describes what every lane checks, `test/CLAUDE.md` covers test layout and naming, and each gate script documents its own mechanics and blind spots.
 
-Unit and invariant tests are both required; `WALL_REQUIRE_INVARIANT=0` stages adoption. Suppress a lint rule in `foundry.toml` under `[lint]` — `exclude_lints` or `mixed_case_exceptions` — after review, rather than in a triage file next to the script.
+Unit and invariant tests are both required; `WALL_REQUIRE_INVARIANT=0` stages adoption. Suppress a lint rule in `foundry.toml` under `[lint]` — `exclude_lints` or `mixed_case_exceptions` — after review, rather than in a triage file of its own, the way aderyn has `aderyn.triage`.
 
 **Adding a triage entry is a human review decision. Propose entries with reasoning; do not add them unilaterally** — the hooks refuse the write in any case.
 
