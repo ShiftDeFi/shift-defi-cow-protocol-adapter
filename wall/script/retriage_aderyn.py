@@ -36,8 +36,8 @@ Comments, blank lines and entry order in aderyn.triage are preserved: only the
 line numbers on re-anchored keys change.
 
 Usage:
-  python3 script/retriage_aderyn.py aderyn.out.json           # re-anchor
-  python3 script/retriage_aderyn.py aderyn.out.json --check   # report only
+  python3 wall/script/retriage_aderyn.py aderyn.out.json           # re-anchor
+  python3 wall/script/retriage_aderyn.py aderyn.out.json --check   # report only
 """
 
 import json

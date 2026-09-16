@@ -1,8 +1,9 @@
 # test/CLAUDE.md
 
-Layout and naming for tests. Both are enforced by `script/gate_tests.py`, which
-runs in the `test` lane ahead of `forge test` — see its docstring for why each
-check exists and what it cannot catch.
+Layout and naming for tests. Both are enforced by
+`wall/script/gate_tests.py`, which runs in the `test` lane ahead of
+`forge test` — see its docstring for why each check exists and what it
+cannot catch.
 
 ## Layout
 

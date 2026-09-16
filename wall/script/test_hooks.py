@@ -35,7 +35,7 @@ import subprocess
 import sys
 import tempfile
 
-ROOT = pathlib.Path(__file__).resolve().parents[1]
+ROOT = pathlib.Path(__file__).resolve().parents[2]
 HOOKS = ROOT / ".claude" / "hooks"
 REQUIRED_HOOKS = (
     "wall_protected.py",
@@ -79,11 +79,11 @@ SETTINGS_LOCAL = """{
 FIXTURE = {
     "aderyn.triage": "reentrancy-state-change|src/A.sol|30\n",
     "slither.db.json": "{}\n",
-    "slither.config.json": "{}\n",
-    "wall.mk": "verify: fmt build\n",
-    "Makefile": "include wall.mk\n",
-    "script/gate_aderyn.py": "# gate\n",
-    "script/gate_tests.py": "# gate\n",
+    "wall/slither.config.json": "{}\n",
+    "wall/wall.mk": "verify: fmt build\n",
+    "Makefile": "include wall/wall.mk\n",
+    "wall/script/gate_aderyn.py": "# gate\n",
+    "wall/script/gate_tests.py": "# gate\n",
     ".claude/settings.json": SETTINGS,
     ".claude/settings.local.json": SETTINGS_LOCAL,
     ".githooks/pre-commit": "#!/bin/sh\n",
@@ -164,10 +164,10 @@ def guard_paths(root):
     for rel in (
         "aderyn.triage",
         "slither.db.json",
-        "slither.config.json",
-        "wall.mk",
+        "wall/slither.config.json",
+        "wall/wall.mk",
         "Makefile",
-        "script/gate_aderyn.py",
+        "wall/script/gate_aderyn.py",
         ".claude/hooks/wall_guard.py",
         ".githooks/pre-commit",
         ".github/workflows/wall.yml",
@@ -284,7 +284,7 @@ def turn_check(root):
              (root / "foundry.toml").read_text().replace(
                  'exclude_lints = ["asm-keccak256"]', "exclude_lints = []"))),
         ("a gate script rewritten",
-         lambda: (root / "script" / "gate_aderyn.py").write_text("exit(0)\n")),
+         lambda: (root / "wall" / "script" / "gate_aderyn.py").write_text("exit(0)\n")),
         ("a hook deleted",
          lambda: (root / ".claude" / "hooks" / "wall_guard.py").unlink()),
         ("a hook added",

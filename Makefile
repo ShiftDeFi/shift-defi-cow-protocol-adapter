@@ -1,4 +1,4 @@
-include wall.mk
+include wall/wall.mk
 
 .PHONY: install tools hooks test-hooks fork coverage coverage-lcov
 
@@ -28,7 +28,7 @@ hooks:
 ##              seconds that say nothing about the contracts. CI runs it as its
 ##              own step, before the gate, so a broken hook fails in seconds.
 test-hooks:
-	python3 script/test_hooks.py
+	python3 wall/script/test_hooks.py
 
 ## coverage : coverage for src/ as a table, with the test and script trees left
 ##            out of the report. Outside the gate.

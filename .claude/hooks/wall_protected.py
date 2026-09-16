@@ -51,10 +51,10 @@ STATE = ROOT / ".git" / "wall-protected-state.json"
 PROTECTED_PATHS = (
     "aderyn.triage",
     "slither.db.json",
-    "slither.config.json",
-    "wall.mk",
+    "wall/slither.config.json",
+    "wall/wall.mk",
     "Makefile",
-    "script/*.py",
+    "wall/script/*.py",
     ".claude/hooks/*.py",
     ".githooks/*",
     ".github/workflows/*",

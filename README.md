@@ -152,8 +152,7 @@ src/                 contracts
 test/                unit tests
   invariant/         property and fuzz tests
   fork/              mainnet fork tests
-script/              gate scripts used by the wall
-wall.mk              the verification gate
+wall/                the verification gate and its scripts
 foundry.toml         compiler, formatter and profile settings
 package.json         npm manifest: what the published package contains
 .claude/             agent hooks that run the gate during development
