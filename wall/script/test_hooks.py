@@ -39,10 +39,13 @@ ROOT = pathlib.Path(__file__).resolve().parents[2]
 HOOKS = ROOT / ".claude" / "hooks"
 REQUIRED_HOOKS = (
     "wall_protected.py",
+    "wall_solidity.py",
     "wall_guard.py",
     "wall_turn_start.py",
     "wall_stop.py",
 )
+
+REQUIRED_TOOLS = ("forge", "slither", "aderyn", "make", "python3")
 
 BLOCK, ALLOW = 2, 0
 
@@ -74,13 +77,14 @@ SETTINGS_LOCAL = """{
 """
 
 # A minimal tree carrying one of everything the hooks reason about. src/A.sol is
-# committed and never modified: wall_stop.py runs `make verify` when a .sol
-# differs, and it must not try to do that inside the fixture.
+# committed, so a turn that leaves it alone asks for no gate run; the verify
+# target records that it was invoked rather than doing any work, which is what
+# gate_run() reads.
 FIXTURE = {
     "aderyn.triage": "reentrancy-state-change|src/A.sol|30\n",
     "slither.db.json": "{}\n",
     "wall/slither.config.json": "{}\n",
-    "wall/wall.mk": "verify: fmt build\n",
+    "wall/wall.mk": "verify:\n\t@touch .git/verify-ran\n",
     "Makefile": "include wall/wall.mk\n",
     "wall/script/gate_aderyn.py": "# gate\n",
     "wall/script/gate_tests.py": "# gate\n",
@@ -362,6 +366,63 @@ def turn_check(root):
     restore(root)
 
 
+def gate_run(root):
+    """Which turns run `make verify`.
+
+    The question here is not whether the gate passes but whether it was asked,
+    so these read the marker the fixture's verify target leaves behind. The
+    hook skips the run outright when the toolchain is absent, which would look
+    the same as not asking, so the whole section is skipped with it.
+    """
+    print("\ngate run — only turns with something to check")
+    absent = [tool for tool in REQUIRED_TOOLS if shutil.which(tool) is None]
+    if absent:
+        print(f"  skipped — not installed: {', '.join(absent)}")
+        return
+
+    ran = root / ".git" / "verify-ran"
+    red = root / ".git" / "wall-verify-red"
+    sol_state = root / ".git" / "wall-turn-sol-state.json"
+    sol = root / "src" / "A.sol"
+    red.unlink(missing_ok=True)
+
+    def run_stop():
+        ran.unlink(missing_ok=True)
+        return hook(root, "wall_stop.py", {})[0], ran.exists()
+
+    # A branch carrying contract work differs from HEAD for its whole life, so
+    # the working tree cannot answer what this turn did.
+    sol.write_text("contract A { uint256 x; }\n")
+    hook(root, "wall_turn_start.py", {})
+    rc, invoked = run_stop()
+    check("a dirty .sol left alone this turn passes", ALLOW, rc)
+    check("and does not run the gate", False, invoked)
+
+    hook(root, "wall_turn_start.py", {})
+    sol.write_text("contract A { uint256 y; }\n")
+    rc, invoked = run_stop()
+    check("a .sol changed this turn passes", ALLOW, rc)
+    check("and runs the gate", True, invoked)
+
+    # A red gate outlives the turn that made it: narrowing which turns run the
+    # gate must not widen which turns may end on a red one.
+    restore(root)
+    hook(root, "wall_turn_start.py", {})
+    red.touch()
+    rc, invoked = run_stop()
+    check("a red gate runs on a turn that touched no Solidity", ALLOW, rc)
+    check("and clears the marker once it passes", False, red.exists())
+    check("having run the gate to find out", True, invoked)
+
+    # No baseline is a fresh clone or a resumed session; the working tree is
+    # the conservative answer, and the tree here is clean.
+    sol_state.unlink(missing_ok=True)
+    rc, invoked = run_stop()
+    check("no baseline over a clean tree passes", ALLOW, rc)
+    check("and does not run the gate either", False, invoked)
+    restore(root)
+
+
 def main() -> int:
     missing = [name for name in REQUIRED_HOOKS if not (HOOKS / name).is_file()]
     if missing:
@@ -376,6 +437,7 @@ def main() -> int:
         guard_settings(root)
         guard_scope(root)
         turn_check(root)
+        gate_run(root)
 
     print()
     failed = [row for row in results if not row[3]]

@@ -14,8 +14,14 @@ turn did. It is also an exact comparison of file contents, which is why
 wall_guard.py no longer tries to recognise a write from the text of a shell
 command (see wall_protected.py).
 
-SECOND, `make verify`, when any .sol differs in the working tree. A red gate
-exits 2 and returns the failing output, which prevents the turn from ending.
+SECOND, `make verify`, when this turn changed any .sol — again by comparison
+against a baseline taken when the turn opened, and for the same reason: a
+branch carrying in-progress contract work differs from HEAD for its whole life,
+so asking the working tree ran the gate on every turn of that branch, including
+the turns that touched no Solidity. A red gate exits 2 and returns the failing
+output, which prevents the turn from ending, and it stays on the books:
+wall_solidity.RED makes every later turn run the gate, whatever that turn
+touched, until it passes.
 
 Two cases exit 0 with a notice instead of blocking:
 
@@ -34,20 +40,36 @@ import subprocess
 import sys
 
 from wall_protected import STATE, compare, snapshot
+from wall_solidity import RED
+from wall_solidity import STATE as SOL_STATE
+from wall_solidity import changed as sol_changed
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 MAX_OUTPUT_LINES = 120
 REQUIRED = ("forge", "slither", "aderyn", "make", "python3")
 
 
-def solidity_changed() -> bool:
-    proc = subprocess.run(
-        ["git", "status", "--porcelain", "--", "*.sol"],
-        cwd=ROOT,
-        capture_output=True,
-        text=True,
-    )
-    return bool(proc.stdout.strip())
+def gate_wanted() -> bool:
+    """Whether `make verify` has anything to say about this turn.
+
+    A missing baseline means the turn started without wall_turn_start.py
+    running — a fresh clone, a resumed session, a hook not yet installed. The
+    working tree is the conservative answer there, and is what this hook asked
+    before the baseline existed.
+    """
+    if RED.exists():
+        return True
+    try:
+        baseline = json.loads(SOL_STATE.read_text())
+    except (OSError, json.JSONDecodeError, ValueError):
+        proc = subprocess.run(
+            ["git", "status", "--porcelain", "--", "*.sol"],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+        )
+        return bool(proc.stdout.strip())
+    return sol_changed(baseline)
 
 
 def gate_moved() -> list[str]:
@@ -93,7 +115,7 @@ def main() -> int:
         )
         return 2
 
-    if not solidity_changed():
+    if not gate_wanted():
         return 0
 
     missing = [tool for tool in REQUIRED if shutil.which(tool) is None]
@@ -108,16 +130,20 @@ def main() -> int:
         ["make", "verify"], cwd=ROOT, capture_output=True, text=True
     )
     if verify.returncode != 0:
+        try:
+            RED.touch()
+        except OSError:
+            pass
         out = (verify.stdout + verify.stderr).strip().splitlines()
         tail = "\n".join(out[-MAX_OUTPUT_LINES:])
         print(
-            "Wall: `make verify` is red and Solidity changed in this turn. Fix "
-            "the failing lane below, or state plainly that it is unresolved.\n\n"
-            + tail,
+            "Wall: `make verify` is red. Fix the failing lane below, or state "
+            "plainly that it is unresolved.\n\n" + tail,
             file=sys.stderr,
         )
         return 2
 
+    RED.unlink(missing_ok=True)
     return 0
 
 
