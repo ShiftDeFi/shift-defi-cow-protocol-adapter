@@ -6,9 +6,9 @@ build. This runs it with JSON output, counts the diagnostics, and fails when
 any are present.
 
 Suppression is configured natively in foundry.toml rather than in a triage file
-next to this script: `[lint] exclude_lints` silences a rule outright, and
-`mixed_case_exceptions` allows specific casing (ERC, URI, ...). `[lint]
-severity` selects which severities run at all.
+of its own, the way aderyn has aderyn.triage: `[lint] exclude_lints` silences a
+rule outright, and `mixed_case_exceptions` allows specific casing (ERC, URI,
+...). `[lint] severity` selects which severities run at all.
 
 Usage:
   python3 gate_lint.py [path ...]      # defaults to the configured src dir
