@@ -109,6 +109,14 @@ def check(name, expected, got):
     print(f"  {'ok  ' if ok else 'FAIL'} {name}")
 
 
+# WALL_GUARD=0 is how a human works on the wall, and working on the wall is
+# exactly when these checks need to run. Inherited into a spawned hook it would
+# reach wall_guard.py, which would lift itself and allow every refusal case, so
+# the whole suite fails in the one session that most needs it. The caller that
+# is testing the lift passes its own env.
+CLEAN_ENV = {k: v for k, v in os.environ.items() if k != "WALL_GUARD"}
+
+
 def hook(root, script, payload, env=None):
     proc = subprocess.run(
         [sys.executable, str(root / ".claude" / "hooks" / script)],
@@ -116,7 +124,7 @@ def hook(root, script, payload, env=None):
         capture_output=True,
         text=True,
         cwd=root,
-        env=env,
+        env=CLEAN_ENV if env is None else env,
     )
     return proc.returncode, (proc.stdout + proc.stderr)
 
